@@ -1,0 +1,415 @@
+<!doctype html>
+
+<!--HWK6 - Creative Scene for CS307
+    Author: Yihui Liao and Ivy Ho
+    Date: 04/10/2022
+
+-->
+
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Creative Scene</title>
+        <style>
+            canvas {
+                display: block;
+                margin: 10px auto;
+                width: 100%;
+                height: 100%;
+            }
+        </style>
+
+        <script src="https://cs.wellesley.edu/~cs307/threejs/libs/three-r95.all.js">
+        "https://cs.wellesley.edu/~cs307/threejs/libs/three-r80.min.js"
+        </script>
+        <script src="https://cs.wellesley.edu/~cs307/threejs/libs/OrbitControls-r95.js">
+        "https://cs.wellesley.edu/~cs307/threejs/libs/OrbitControls-r80.js"
+        </script>
+        <script src="https://cs.wellesley.edu/~cs307/threejs/libs/dat.gui-r95.js">
+        "https://cs.wellesley.edu/~cs307/threejs/libs/dat.gui-r80.min.js"
+        </script>
+        <script src="https://cs.wellesley.edu/~cs307/threejs/libs/tw-sp21.js">
+        "https://cs.wellesley.edu/~cs307/threejs/libs/tw-fa18.js"
+        </script>
+    </head>
+    <body>
+        <script type="module">
+            // import { Water } from 'https://threejs.org/examples/jsm/objects/Water.js';
+            // import { Sky } from 'https://threejs.org/examples/jsm/objects/Sky.js';
+
+
+            // create a scene
+            var scene = new THREE.Scene();
+
+            // ====================================================================
+            // prepare for scene objects
+
+            // object sizes
+            var params = {
+                groundDimension: 1000,
+                plankHeight: .25,
+				plankDepth: 5,
+				plankWidth: 1,
+				railZ: 1.5,
+				railWidth: .25,
+				railDepth: 3
+            };
+
+            var cameraParams = {
+                    near: 1,
+                    far: 100,
+                    fov: 90,
+                    aspectRatio: 800/500,
+                    atX: params.groundDimension,
+                    atY: 0,
+                    atZ: 0,
+                    eyeX: 0,
+                    eyeY: 50,
+                    eyeZ: 0,
+                    upX: 0,
+                    upY: 1,
+                    upZ: 0
+                  };
+
+            // setupCamera() function creates and returns a camera with the desired parameters
+            function setupCamera (cameraParameters) {
+                // set up an abbreviation 
+                var cp = cameraParameters;
+                // create an initial camera with the desired shape
+                var camera = new THREE.PerspectiveCamera(cp.fov, cp.aspectRatio, cp.near, cp.far);
+                // set the camera location and orientation
+                camera.position.set(cp.eyeX, cp.eyeY, cp.eyeZ);
+                camera.up.set(cp.upX, cp.upY, cp.upZ);
+                camera.lookAt(new THREE.Vector3(cp.atX, cp.atY, cp.atZ));
+                return camera;
+            }
+
+
+            // prepare materials
+            var materials;  
+            var colorMaterials;                  
+            TW.loadTextures(["rock.jpeg", "concrete.jpeg", "wood.jpg", "metal.jpg", "water.jpeg", "plank.jpeg"],
+            function (textures) {
+                adjustTexture(textures[0], 200, 2, false);
+                adjustTexture(textures[1], 10, 3, false);
+                adjustTexture(textures[2], 1, 1, false);
+                adjustTexture(textures[3], 3, 1, false);
+                adjustTexture(textures[4], 50, 50, false);
+                adjustTexture(textures[5], 4, 1, false);
+
+
+                materials = [new THREE.MeshPhongMaterial({color: 0xffffff,  // 0 rock
+                                                        map: textures[0]}),
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 1 concrete
+                                                        map: textures[1]}),
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 2 water
+                                                        map: textures[4],
+                                                        side: THREE.DoubleSide}), 
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 3 wood
+                                                        map: textures[2]}),
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 4 metal
+                                                        map: textures[3]}),   
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 5 red plank
+                                                        map: textures[5]}),                   
+                            ];
+
+                colorMaterials = [new THREE.MeshPhongMaterial({color: new THREE.Color(0xfcce8e), // 0 beige
+                                                        specular: new THREE.Color("dimgray"),
+                                                        shininess: 5,
+                                                        side: THREE.DoubleSide}),
+                                new THREE.MeshPhongMaterial({color: new THREE.Color(0x4395A0), // 1 blue
+                                                        specular: new THREE.Color("dimgray"),
+                                                        shininess: 5,
+                                                        side: THREE.DoubleSide}),   
+                                                    
+                                ];
+                remakeScene();
+            });
+
+            // ====================================================================
+            // functions to create scene objects
+
+            // adds texture coordinates to all the barn vertices
+            // function addTextureCoordsRock (rockGeom) {
+            //     if( ! rockGeom instanceof THREE.Geometry ) {
+            //         throw "not a THREE.Geometry: "+ rockGeom;
+            //     }
+            //     // array of face descriptors
+            //     var UVs = [];
+            //     function faceCoords(as,at, bs,bt, cs,ct) {
+            //         UVs.push( [ new THREE.Vector2(as,at),
+            //                     new THREE.Vector2(bs,bt),
+            //                     new THREE.Vector2(cs,ct)] );
+            //     }
+            //     // front (faces 0-2)
+            //     faceCoords(0,1, 2,1, 2,0);
+            //     faceCoords(0,1, 2,0, 0,0);
+
+            //     // attach this to the geometry
+            //     barnGeom.faceVertexUvs = [ UVs ];
+            // }
+            function adjustTexture(texture, repeatH, repeatV, mirror) {
+                texture.repeat.set(repeatH,repeatV);
+                texture.needsUpdate = true;
+                if (mirror) {
+                    texture.wrapS = THREE.MirroredRepeatWrapping;
+                    texture.wrapT = THREE.MirroredRepeatWrapping;
+                } else {
+                    texture.wrapS = THREE.RepeatWrapping;
+                    texture.wrapT = THREE.RepeatWrapping;
+                }
+            }
+
+            function makeGround() {
+                var ground = new THREE.Object3D();
+
+                // blue plane for bottom of the sea
+                var plane1 = new THREE.PlaneGeometry(params.groundDimension, params.groundDimension);
+                var planeMesh1 = new THREE.Mesh(plane1, colorMaterials[1]);
+                planeMesh1.rotation.x = Math.PI/2;
+                ground.add(planeMesh1);
+
+                // blue plane for top of the sea
+                var plane2 = new THREE.PlaneGeometry(params.groundDimension, params.groundDimension);
+                var planeMesh2 = new THREE.Mesh(plane2, materials[2]);
+                planeMesh2.rotation.x = Math.PI/2;
+                planeMesh2.position.y = .5;
+                
+                // enable transparency
+                planeMesh2.material.transparent = true;
+                // set opacity to 50%
+                planeMesh2.material.opacity = 0.5; 
+                ground.add(planeMesh2);
+
+                // rock path
+                var path = new THREE.PlaneGeometry(params.groundDimension, params.groundDimension/100);
+
+                var pathMesh = new THREE.Mesh(path, materials[0]);
+                pathMesh.position.y = 0.01;
+                pathMesh.rotation.x = Math.PI/2;
+                pathMesh.material.side = THREE.DoubleSide;
+
+
+
+                ground.add(pathMesh);
+
+                // train tracks
+                var positionX = -200;
+                for (let i = 0; i <= 200; i++ ){
+                    var track = makeTracks();
+                    track.position.x = positionX + params.railDepth/2;
+                    positionX += params.railDepth/2;
+                    ground.add(track);
+                }
+
+                // var track1 = makeTracks();
+                // var track2 = makeTracks();
+
+
+
+                // track1.position.x = params.railDepth/2;
+
+                // ground.add(track1);
+                // ground.add(track2);
+
+                scene.add(ground);
+
+                TW.render();
+                
+                // return ground;
+            }
+
+            function makeTracks(){
+                var track = new THREE.Object3D();
+                
+				var height = params.plankHeight;
+				var depth = params.plankDepth;
+				var width = params.plankWidth;
+				var railZ = params.railZ;
+
+				var plankGeom = new THREE.BoxGeometry(width,height,depth);
+				var plankMesh = new THREE.Mesh(plankGeom, materials[3]);
+
+				var rail1 = makeRail();
+				var rail2 = makeRail();
+
+				rail1.position.z = railZ;
+				rail2.position.z = -railZ;
+
+				track.add(plankMesh)
+				track.add(rail1);
+				track.add(rail2);
+
+				return track;
+            }
+
+            function makeRail(){
+				var width = params.railWidth;
+				var height = params.plankHeight;
+				var depth = params.railDepth;
+
+				var railGeom = new THREE.BoxGeometry(width, height, depth);
+				var railMesh = new THREE.Mesh(railGeom, materials[4]);
+
+				railMesh.position.y = height;
+				railMesh.rotation.y = Math.PI/2;
+
+				return railMesh
+
+				// scene.add(railMesh)
+                
+			}
+
+            function makeTrain(){
+
+                var train = new THREE.Object3D();
+                var length = 1, width = 2;
+
+                var shape = new THREE.Shape();
+                shape.moveTo( 0,0 );
+                shape.lineTo( 0, width );
+                shape.lineTo( length, width );
+                shape.lineTo( length, 0 );
+                shape.lineTo( 0, 0 );
+
+                var extrudeSettings = {
+                    steps: 10,
+                    depth: 20,
+                    bevelEnabled: true,
+                    bevelThickness: 3,
+                    bevelSize: 3,
+                    bevelOffset: -10,
+                    bevelSegments: 30
+                };
+
+                var geometry = new THREE.ExtrudeGeometry( shape, extrudeSettings );
+                // const material = new THREE.MeshPhongMaterial( { color: 0xfcce8e } );
+                var mesh = new THREE.Mesh( geometry, colorMaterials[0]) ;
+                mesh.rotation.y = Math.PI/2;
+                train.add(mesh);
+
+                var planeGeom = new THREE.PlaneGeometry(20, 2);
+                var planeMesh = new THREE.Mesh(planeGeom, materials[5]);
+                planeMesh.position.z = 3.1;
+                planeMesh.position.y = 1;
+                planeMesh.position.x = 10;
+                train.add(planeMesh);
+
+                // var planeGeom1 = new THREE.PlaneGeometry(2, 2);
+                // var planeMesh1 = new THREE.Mesh(planeGeom1, materials[5]);
+                // planeMesh1.position.z = 2.9;
+                // planeMesh1.position.y = 1;
+                // planeMesh1.position.x = -2
+                // planeMesh1.rotation.y = -Math.PI/4;
+                // train.add(planeMesh1);
+
+                scene.add(train);
+
+            }
+
+            // var controlPoints = [ [ [0,0,3],  [2,-1,-3], [4,-1,-3], [6, 0, -3] ],
+            //           [ [-1,1,0], [2,1,1],  [4,1,1],  [7, 1, 0] ],
+            //           [ [-1,2,0], [2,2,1],  [4,2,1],  [7, 2, 0] ],
+            //           [ [0,3,3],  [2,4,3],  [4,4,3],  [6, 3, 3] ] ];
+
+            // var topToBottom = [
+            //     [ [0,3,0],  [2,4,1],  [4,4,1],  [6, 3, 0] ],
+            //     [ [-1,2,0], [2,2,1],  [4,2,1],  [7, 2, 0] ],
+            //     [ [-1,1,0], [2,1,1],  [4,1,1],  [7, 1, 0] ],
+            //     [ [0,0,0],  [2,-1,0], [4,-1,0], [6, 0, 0] ],
+            // ];
+
+            // // I added this to our version of THREE.js (defined in TW.js) -- Scott D. Anderson
+
+            // var surfGeom = new THREE.BezierSurfaceGeometry( topToBottom.reverse(), 10, 10 );
+
+            // // note that the controlPoints can be used directly: 
+            // // var surfGeom = new THREE.BezierSurfaceGeometry(controlPoints, 10, 10 );
+
+            // // var surfMat  = new THREE.MeshBasicMaterial( { color: THREE.ColorKeywords.blue,
+            // //                                               wireframe: true,
+            // //                                               linewidth: 2 } );
+
+            // var surfMat = new THREE.MeshNormalMaterial();
+            // var surf = new THREE.Mesh( surfGeom, surfMat );
+            // scene.add(surf);
+
+            // function showCP(cpList) {
+            //     for( var j=0; j < cpList.length; j++ ) {
+            //         var subList = cpList[j];                      
+            //         for( var i=0; i < subList.length; i++ ) {
+            //             scene.add(TW.createPoint(subList[i]));
+            //         }
+            //     }
+            // };
+
+            // showCP(controlPoints);          // optional, for debugging.
+
+
+
+            // var ground = makeGround();
+            // scene.add(ground);  
+
+            function makePlatform() {
+                // make plane size relative to ground size
+                var dimension = params.groundDimension;
+                var platHeight = 1;
+
+                var platGeom = new THREE.BoxGeometry(dimension/50, platHeight, dimension/200);
+                var platMesh = new THREE.Mesh(platGeom, materials[1])
+                platMesh.position.y = platHeight/2 + 0.01; // add a little extra so it doesn't glitch
+                platMesh.position.z = -params.plankDepth*2;
+
+                scene.add(platMesh);
+            }
+
+            // render the scene
+            function remakeScene() {
+                makeGround();
+                makePlatform();
+                makeTrain();
+                TW.render();
+            }
+
+
+            // ====================================================================
+            // add objects to the scene
+
+            
+            // ====================================================================
+            // make lights
+
+            // 55% intensity
+            var ambLight = new THREE.AmbientLight(new THREE.Color("white"), 0.55);
+            scene.add(ambLight);
+            
+            // directional light coming from slightly right, front, and up direction
+            var dirLight = new THREE.DirectionalLight( TW.WHITE, 0.7 );
+            dirLight.position.set( 0.7, 0.9, 1 );
+            scene.add(dirLight);
+
+            // ====================================================================
+            // set up renderer
+            var renderer = new THREE.WebGLRenderer();
+
+            TW.mainInit(renderer,scene);
+
+            // create camera, add to scene, and render scene with new camera
+            function renderNewFrame() {
+                var camera = setupCamera(cameraParams);
+                scene.add(camera);
+                renderer.render(scene,camera);
+            }
+
+            // set up default camera
+            TW.cameraSetup(renderer,
+                            scene,
+                            {minx: -10, maxx: 10,
+                            miny: -10, maxy: 10,
+                            minz: -10, maxz: 10});
+
+            // ====================================================================
+
+        </script>
+    </body>
+</html>
