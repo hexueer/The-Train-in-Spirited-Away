@@ -429,6 +429,31 @@
                 train.add(cylinderLong1);
                 train.add(cylinderLong2);
 
+                //add spotlight
+
+                var spotlight1 = makeSpotlight(.5, 1, 1, 1, colorMaterials[0], colorMaterials[4], 1);
+                spotlight1.position.y = params.height;
+                spotlight1.position.x = params.width + params.depth/2;
+
+                var light1 = new THREE.SpotLight(0xffffff, 1, 0, TW.degrees2radians(20), 0, 1);
+                light1.position.set(params.width + params.depth/2, params.height, 0);
+                light1.target.position.set(30, 0, 0);
+
+                var spotlight2 = makeSpotlight(.5, 1, 1, 1, colorMaterials[0], colorMaterials[4], -1);
+                spotlight2.position.y = params.height;
+                spotlight2.position.x = - params.width - params.depth/2;
+
+                var light2 = new THREE.SpotLight(0xffffff, 1, 0, TW.degrees2radians(20), 0, 1);
+                light2.position.set(-params.width - params.depth/2, params.height, 0);
+                light2.target.position.set(-30, 0, 0);
+
+                scene.add(light1);
+                scene.add(light1.target);
+                scene.add(light2);
+                scene.add(light2.target)
+
+                train.add(spotlight1);
+                train.add(spotlight2);
 
                 return train;
             }
@@ -447,6 +472,36 @@
 
             //     return window;
             // }
+
+            function makeSpotlight(radius, width, height, depth, coneMaterial, boxMaterial, side){
+
+                var spotlight = new THREE.Object3D();
+
+                var boxGeom = new THREE.BoxGeometry(width, height, depth);
+                var boxMesh = new THREE.Mesh(boxGeom, boxMaterial);
+
+                boxMesh.position.y = height/2;
+
+                var coneGeom = new THREE.ConeGeometry(radius, width, 64, 1, true);
+                var coneMesh = new THREE.Mesh(coneGeom, coneMaterial);
+
+                coneMesh.rotation.z = side * Math.PI/2;
+                coneMesh.position.x = side * .5;
+                coneMesh.position.y = width/2;
+
+                var sphereGeom = new THREE.SphereGeometry(radius/2, 32, 16 );
+                var sphereMesh = new THREE.Mesh(sphereGeom, colorMaterials[3]);
+
+                sphereMesh.position.x = side * .5;
+                sphereMesh.position.y = width/2;
+                
+                spotlight.add(boxMesh);
+                spotlight.add(coneMesh);
+                spotlight.add(sphereMesh);
+
+                return spotlight;
+                
+            }
 
             function makeTrainTopCylinder(radius, height, material){
 
