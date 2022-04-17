@@ -340,6 +340,7 @@
 
             // takes a train car BSP geometry and adds windows but subtracting boxes from the car
             function addWindowHoles(bspGeom, width, height) {
+                // cut out square windows
                 var windowGeom = new THREE.BoxGeometry(height/4, height/4, height*1.5);
                 windowGeom.translate( -0.65, height/1.35, 0 );
 
@@ -350,6 +351,31 @@
                     bsp_window = new ThreeBSP(windowGeom);
                     bspGeom = bspGeom.subtract(bsp_window);
                 }
+
+                // cut out triangle windows
+                windowGeom = new THREE.ConeGeometry(height/6, height/3, 8, 1, false, 0, Math.PI); // half a cone has the silhouette of a triangle
+                var geomCloser = new THREE.BoxGeometry(height/4, height/4, height/4);
+                windowGeom.translate( width, height/1.35, params.depth/2 );
+                geomCloser.translate( width+height/12, height/1.35, params.depth/2 );
+                bsp_window = new ThreeBSP(windowGeom);
+                var bsp_geomCloser = new ThreeBSP(geomCloser);
+                bspGeom = bspGeom.subtract(bsp_window.intersect(bsp_geomCloser));
+
+                windowGeom.translate( 0, 0, -params.depth );
+                geomCloser.translate( 0, 0, -params.depth );
+                bsp_window = new ThreeBSP(windowGeom);
+                bsp_geomCloser = new ThreeBSP(geomCloser);
+                bspGeom = bspGeom.subtract(bsp_window.intersect(bsp_geomCloser));
+
+                // cut out front windows
+                var windowGeom = new THREE.BoxGeometry(height, height/4, params.depth/2.5);
+                windowGeom.translate( width*1.01, height/1.35, params.depth*0.25 );
+                bsp_window = new ThreeBSP(windowGeom);
+                bspGeom = bspGeom.subtract(bsp_window);
+
+                windowGeom.translate( 0, 0, -params.depth*0.5 );
+                bsp_window = new ThreeBSP(windowGeom);
+                bspGeom = bspGeom.subtract(bsp_window);
 
                 return bspGeom;
             }
@@ -417,17 +443,18 @@
             }
 
             function makeInterior(width, height, depth, material){
-                var car = new THREE.Object3D();
                 
                 // make train car body with holes for windows
-                var carGeom = makeTrainCarGeom(width, height, depth, 0, 0, 0);
-                var bsp_carGeom = addWindowHoles(carGeom, width, height);
-                // bsp_carGeom = addWheelHoles(bsp_carGeom, width, height, depth);
-                var carInsideGeom = makeTrainCarGeom(width, height, depth-0.5, 0.1, 0, 0);
-                bsp_carGeom = bsp_carGeom.subtract(carInsideGeom);  // remove inside of train
-                var carMesh = makeMesh(bsp_carGeom, material);
-                car.add(carMesh);
-                return car;
+                var carGeomLower = makeTrainCarGeomLowerBevel(width, height, depth, 0, 0, 0);
+                var carGeomUpper = makeTrainCarGeomUpperBevel(width, height, depth, 0, 0, 0);
+                var carGeom = carGeomLower.union(carGeomUpper);
+
+                carGeom = addWindowHoles(carGeom, width, height);
+                var carInsideGeom = makeTrainCarGeomLowerBevel(width-0.3, height, depth-0.1, 0.1, 0, 0).union(makeTrainCarGeomUpperBevel(width-0.3, height, depth-0.5, 0.1, 0, 0));
+                carGeom = carGeom.subtract(carInsideGeom);  // remove inside of train
+                var carMesh = makeMesh(carGeom, material);
+
+                return carMesh;
             }
 
             function makeTrainCar(width, height, depth, material) {
@@ -439,7 +466,7 @@
                 var carGeom = carGeomLower.union(carGeomUpper);
 
                 carGeom = addWindowHoles(carGeom, width, height);
-                var carInsideGeom = makeTrainCarGeomLowerBevel(width-0.3, height, depth-0.5, 0.1, 0, 0).union(makeTrainCarGeomUpperBevel(width-0.3, height, depth-0.5, 0.1, 0, 0));
+                var carInsideGeom = makeTrainCarGeomLowerBevel(width-0.3, height, depth-0.1, 0.1, 0, 0).union(makeTrainCarGeomUpperBevel(width-0.3, height, depth-0.5, 0.1, 0, 0));
                 carGeom = carGeom.subtract(carInsideGeom);  // remove inside of train
                 var carMesh = makeMesh(carGeom, material);
                 car.add(carMesh);
@@ -482,13 +509,13 @@
 
                 // add "glass" to windows
                 var windowGeom = makeTrainCarGeomUpperBevel(width-0.1, height, depth - 0.1, 0, 0, 0);
-                var windowInsideGeom = makeTrainCarGeomUpperBevel(width, height, depth - 0.4, 0.1, 0, 0);
+                var windowInsideGeom = makeTrainCarGeomUpperBevel(width-0.3, height, depth - 0.4, 0.1, 0, 0);
                 windowGeom = windowGeom.subtract(windowInsideGeom); // remove inside of glass prism
                 var window = makeMesh(windowGeom, colorMaterials[3]);
                 car.add(window);
 
-                //wood
-                var interior = makeInterior(width - 0.1, height, depth - 0.2, colorMaterials[5]);
+                // wood
+                var interior = makeInterior(width - 0.2, height, depth - 0.2, colorMaterials[5]);
                 interior.position.x = .1;
                 car.add(interior);
 
@@ -513,13 +540,10 @@
                 car.add(light);
                 car.add(light.target);
 
-
-                //add flooring to car
-
-                var floor = makeFloor(depth/2, width, depth);
-                floor.position.set(params.width/2, height/15, 0);
+                // add flooring to car
+                var floor = makeFloor(width*1.08, depth);
+                floor.position.set(width*0.54, height/15, 0);
                 car.add(floor);
-
 
                 return car;
             }
@@ -542,115 +566,8 @@
 
                 train.add(connector);
 
-
-                // //train top
-
-                // var top1 = makeTrainCarShape(params.width, .5, params.depth, colorMaterials[4]);
-                // var top2 = makeTrainCarShape(params.width, .5, params.depth, colorMaterials[4]);
-                // top2.rotation.y = Math.PI;
-
-                // top1.position.y = params.height;
-                // top1.position.x = space;
-
-                // top2.position.y = params.height;
-                // top2.position.x = -space;
-    
-                // train.add(top1);
-                // train.add(top2);
-
-                //windows
-
-                // var window1 = makeTrainCarShape(params.width, params.height, params.depth - .1, colorMaterials[3]);
-                // var window2 = makeTrainCarShape(params.width, params.height, params.depth - .1, colorMaterials[3]);
-
-                // window2.rotation.y = Math.PI;
-
-                // window1.position.x = space;
-                // window2.position.x = -space;
-
-                // train.add(window1);
-                // train.add(window2);
-
-                //cylinder top
-
-                // var cylinder1 = makeTrainTopCylinder(1.5, .5, colorMaterials[4]);
-                // cylinder1.position.y = params.height + .5;
-                // cylinder1.position.x = params.width;
-
-                // var cylinder2 = makeTrainTopCylinder(1.5, .5, colorMaterials[4]);
-                // cylinder2.position.y = params.height + .5;
-                // cylinder2.position.x = -params.width;
-
-                // train.add(cylinder1);
-                // train.add(cylinder2);
-
-                // var cylinder3 = makeTrainTopCylinder(1.5, .5, colorMaterials[4]);
-                // cylinder3.position.y = params.height + .5;
-                // cylinder3.position.x = 3;
-
-                // var cylinder4 = makeTrainTopCylinder(1.5, .5, colorMaterials[4]);
-                // cylinder4.position.y = params.height + .5;
-                // cylinder4.position.x = -3;
-
-                // train.add(cylinder3);
-                // train.add(cylinder4);
-
-                //cylinder long top
-
-                // var cylinderLong1 = makeTrainTopCylinderLong(2, 1.5, .5, colorMaterials[4]);
-                // cylinderLong1.position.y = params.height + .5;
-                // cylinderLong1.position.x = 9;
-
-                // var cylinderLong2 = makeTrainTopCylinderLong(3, 1.5, .5, colorMaterials[4]);
-                // cylinderLong2.position.y = params.height + .5;
-                // cylinderLong2.position.x = -9;
-
-                // train.add(cylinderLong1);
-                // train.add(cylinderLong2);
-
-                //add spotlight
-
-                // var spotlight1 = makeSpotlight(.5, 1, 1, 1, colorMaterials[0], colorMaterials[4], 1);
-                // spotlight1.position.y = params.height;
-                // spotlight1.position.x = params.width + params.depth/2;
-
-                // var light1 = new THREE.SpotLight(0xffffff, 1, 0, TW.degrees2radians(20), 0, 1);
-                // light1.position.set(params.width + params.depth/2, params.height, 0);
-                // light1.target.position.set(30, 0, 0);
-
-                // var spotlight2 = makeSpotlight(.5, 1, 1, 1, colorMaterials[0], colorMaterials[4], -1);
-                // spotlight2.position.y = params.height;
-                // spotlight2.position.x = - params.width - params.depth/2;
-
-                // var light2 = new THREE.SpotLight(0xffffff, 1, 0, TW.degrees2radians(20), 0, 1);
-                // light2.position.set(-params.width - params.depth/2, params.height, 0);
-                // light2.target.position.set(-30, 0, 0);
-
-                // scene.add(light1);
-                // scene.add(light1.target);
-                // scene.add(light2);
-                // scene.add(light2.target)
-
-                // train.add(spotlight1);
-                // train.add(spotlight2);
-
                 return train;
             }
-
-            // function makeWindow(side){
-
-            //     var window = new THREE.Object3D();
-
-            //     var planeGeom = new THREE.PlaneGeometry(2, 2);
-            //     var planeMesh = new THREE.Mesh(planeGeom, colorMaterials[3]);
-
-            //     planeMesh.position.z = side * (params.depth/2 + .1);
-            //     planeMesh.position.y = params.height - 2;
-
-            //     window.add(planeMesh);
-
-            //     return window;
-            // }
 
             function makeSign(radius, height){
                 var sign = new THREE.Object3D();
@@ -671,22 +588,16 @@
 
             }
 
-            function makeFloor(radius, width, height){
+            function makeFloor(width, height){
                 
                 var floor = new THREE.Object3D();
 
                 var planeGeom = new THREE.PlaneGeometry(width, height);
-                var planeMesh = new THREE.Mesh(planeGeom,materials[7]);
-
-                var circleGeom = new THREE.CircleGeometry(radius, 32);
-                var circleMesh = new THREE.Mesh(circleGeom, materials[7]);
+                var planeMesh = new THREE.Mesh(planeGeom, materials[7]);
 
                 planeMesh.rotation.x = Math.PI/2;
-                circleMesh.rotation.x = Math.PI/2;
-                circleMesh.position.x = width/2;
 
                 floor.add(planeMesh);
-                floor.add(circleMesh);
 
                 return floor;
             }
@@ -741,18 +652,6 @@
 
                 cylinder1.position.x = width/2;
                 cylinder2.position.x = -width/2;
-
-                // var cylinderGeom1 = new THREE.CylinderGeometry(radius, radius, height, 20);
-                // var cylinderMesh1 = new THREE.Mesh(cylinderGeom1, material);
-                // cylinderMesh1.position.y = height/2;
-                // cylinderMesh1.position.x = width/2;
-                // cylinderLong.add(cylinderMesh1);
-
-                // var cylinderGeom2 = new THREE.CylinderGeometry(radius, radius, height, 20);
-                // var cylinderMesh2 = new THREE.Mesh(cylinderGeom2, material);
-                // cylinderMesh2.position.y = height/2;
-                // cylinderMesh2.position.x = -width/2;
-                // cylinderLong.add(cylinderMesh2);
 
                 var boxGeom = new THREE.BoxGeometry(width, height, radius * 2);
                 var boxMesh = new THREE.Mesh(boxGeom, material);
@@ -816,17 +715,6 @@
                 return sphereMesh;
             }
 
-
-            function test(width, height, depth, material) {
-                // var carGeom = makeTrainCarGeom(width, height, depth, 0, 0, 0);
-                // var bsp_carGeom = addWindowHoles(carGeom, width, height);
-                // var carInsideGeom = makeTrainCarGeom(width, height, depth-0.5, 0.1, 0, 0);
-                // bsp_carGeom = bsp_carGeom.subtract(carInsideGeom);  // remove inside of train
-                // var carMesh = makeMesh(bsp_carGeom, material);
-
-                
-            }
-
             // render the scene
             function remakeScene() {
                 var ground = makeGround();
@@ -836,19 +724,15 @@
                 scene.add(plat);
 
                 var train = makeTrain();
-                train.position.y = 2;
+                train.position.y = 1;
                 scene.add(train);
 
                 var sphere = makeSphere();
                 scene.add(sphere);
 
                 var sign = makeSign(.1, 5);
-                sign.position.set(-2, 4, -10);
+                sign.position.set(-38, 3, -10);
                 scene.add(sign);
-
-                // var testMesh = test(params.width, params.height, params.depth, colorMaterials[0]);
-                // testMesh.position.y = 10;
-                // scene.add(testMesh);
 
                 TW.render();
             }
