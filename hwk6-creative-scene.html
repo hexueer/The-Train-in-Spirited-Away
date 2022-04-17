@@ -96,7 +96,7 @@
             // prepare materials
             var materials;  
             var colorMaterials;                  
-            TW.loadTextures(["rock.jpeg", "concrete.jpeg", "wood.jpg", "metal.jpg", "water.jpeg", "plank.jpeg", "sky.jpg"],
+            TW.loadTextures(["rock.jpeg", "concrete.jpeg", "wood.jpg", "metal.jpg", "water.jpeg", "plank.jpeg", "sky.jpg", "floor.jpg"],
             function (textures) {
                 adjustTexture(textures[0], 200, 2, false);
                 adjustTexture(textures[1], 10, 3, false);
@@ -105,6 +105,7 @@
                 adjustTexture(textures[4], 50, 50, false);
                 adjustTexture(textures[5], 4, 1, false);
                 adjustTexture(textures[6], 1, 1, false);
+                adjustTexture(textures[7], 1, 1, false);
 
 
                 materials = [new THREE.MeshPhongMaterial({color: 0xffffff,  // 0 rock
@@ -122,7 +123,10 @@
                                                         map: textures[5]}),
                             new THREE.MeshPhongMaterial({color: 0xffffff,   // 6 sky
                                                         map: textures[6],
-                                                        side: THREE.BackSide}),                      
+                                                        side: THREE.BackSide}),   
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 7 floor
+                                                        map: textures[7],
+                                                        side: THREE.DoubleSide}),                     
                             ];
 
                 colorMaterials = [new THREE.MeshPhongMaterial({color: new THREE.Color(0xfcce8e), // 0 beige
@@ -145,6 +149,8 @@
                                                         reflectivity: 5,
                                                         }),   
                                 new THREE.MeshPhongMaterial({color: new THREE.Color(0x730a00), // 4 red
+                                                        side: THREE.DoubleSide}), 
+                                new THREE.MeshPhongMaterial({color: new THREE.Color(0x2e201c), // 5 brown
                                                         side: THREE.DoubleSide}), 
                                 ];
                 remakeScene();
@@ -410,6 +416,20 @@
                 return shapeMesh;
             }
 
+            function makeInterior(width, height, depth, material){
+                var car = new THREE.Object3D();
+                
+                // make train car body with holes for windows
+                var carGeom = makeTrainCarGeom(width, height, depth, 0, 0, 0);
+                var bsp_carGeom = addWindowHoles(carGeom, width, height);
+                // bsp_carGeom = addWheelHoles(bsp_carGeom, width, height, depth);
+                var carInsideGeom = makeTrainCarGeom(width, height, depth-0.5, 0.1, 0, 0);
+                bsp_carGeom = bsp_carGeom.subtract(carInsideGeom);  // remove inside of train
+                var carMesh = makeMesh(bsp_carGeom, material);
+                car.add(carMesh);
+                return car;
+            }
+
             function makeTrainCar(width, height, depth, material) {
                 var car = new THREE.Object3D();
                 
@@ -467,6 +487,11 @@
                 var window = makeMesh(windowGeom, colorMaterials[3]);
                 car.add(window);
 
+                //wood
+                var interior = makeInterior(width - 0.1, height, depth - 0.2, colorMaterials[5]);
+                interior.position.x = .1;
+                car.add(interior);
+
                 // add cylinders on top to decorate
                 var smallCyl1 = makeTrainTopCylinder(1.5, .5, colorMaterials[4]);
                 var smallCyl2 = makeTrainTopCylinder(1.5, .5, colorMaterials[4]);
@@ -487,6 +512,14 @@
                 car.add(spotlight);
                 car.add(light);
                 car.add(light.target);
+
+
+                //add flooring to car
+
+                var floor = makeFloor(depth/2, width, depth);
+                floor.position.set(params.width/2, height/15, 0);
+                car.add(floor);
+
 
                 return car;
             }
@@ -618,6 +651,45 @@
 
             //     return window;
             // }
+
+            function makeSign(radius, height){
+                var sign = new THREE.Object3D();
+
+                var barGeom = new THREE.CylinderGeometry(radius, radius, height, 32);
+                var barMesh = new THREE.Mesh(barGeom, materials[4]);
+
+                var plateGeom = new THREE.CylinderGeometry(radius * 10, radius * 10, radius + .2, 32);
+                var plateMesh = new THREE.Mesh(plateGeom, colorMaterials[4]);
+
+                plateMesh.rotation.x = Math.PI/2;
+                plateMesh.position.y = height/2;
+
+                sign.add(barMesh);
+                sign.add(plateMesh);
+
+                return sign; 
+
+            }
+
+            function makeFloor(radius, width, height){
+                
+                var floor = new THREE.Object3D();
+
+                var planeGeom = new THREE.PlaneGeometry(width, height);
+                var planeMesh = new THREE.Mesh(planeGeom,materials[7]);
+
+                var circleGeom = new THREE.CircleGeometry(radius, 32);
+                var circleMesh = new THREE.Mesh(circleGeom, materials[7]);
+
+                planeMesh.rotation.x = Math.PI/2;
+                circleMesh.rotation.x = Math.PI/2;
+                circleMesh.position.x = width/2;
+
+                floor.add(planeMesh);
+                floor.add(circleMesh);
+
+                return floor;
+            }
 
             function makeSpotlight(radius, width, height, depth, coneMaterial, boxMaterial, side){
 
@@ -769,6 +841,10 @@
 
                 var sphere = makeSphere();
                 scene.add(sphere);
+
+                var sign = makeSign(.1, 5);
+                sign.position.set(-2, 4, -10);
+                scene.add(sign);
 
                 // var testMesh = test(params.width, params.height, params.depth, colorMaterials[0]);
                 // testMesh.position.y = 10;
