@@ -35,11 +35,24 @@
         <script src="https://rawgit.com/Wilt/ThreeCSG/develop/ThreeCSG.js"></script>
     </head>
     <body>
-        <script type="module">
-            // import { Water } from 'https://threejs.org/examples/jsm/objects/Water.js';
-            // import { Sky } from 'https://threejs.org/examples/jsm/objects/Sky.js';
-
-
+        <h1>
+            Creative Scene
+        </h1>
+        <h6>
+            created by Yihui Liao and Ivy Ho
+        </h6>
+        <p>
+            On this page, we have begun to build out a scene from the animated film Spirited Away which was directed by Hayao Miyazaki. 
+            This is the scene where a train that travels through shallow water is arriving at a "bus stop" in the middle of the water to bring the main character to her destination. 
+            We have built out the main components of the train's exterior, implemented water using a plane mapped with slightly transparent material, and also built the train tracks (made from box geoometries) on top of a rock path (texture mapped). 
+            In particular, the train is a fairly complex object in our scene since we used ThreeBSP to transform and merge multiple geometries, which gave us wonderful features like windows that are actually cut out of the train's geometry.
+            In terms of our future plans, we will add doors to the exterior of the train and seating to the interior of the train.
+            On the matter of implementing animations and user interaction, we will be coding our train to move across the screen on a key press. 
+            We also hope to be able to animate the water so that it flows like a real ocean.
+            On specific key presses or perhaps mouse clicks, we would also like to show a variety of camera perspectives on the scene.
+            Please look forward to our final version of the scene.
+        </p>
+        <script>
             // create a scene
             var scene = new THREE.Scene();
 
