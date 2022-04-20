@@ -1,0 +1,798 @@
+<!doctype html>
+
+<!--HWK6 - Creative Scene for CS307
+    Author: Yihui Liao and Ivy Ho
+    Date: 04/10/2022
+
+-->
+
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Creative Scene</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+            }
+
+            canvas {
+                display: block;
+                margin: 10px auto;
+                width: 100%;
+                height: 100%;
+            }
+        </style>
+
+        <script src="https://cs.wellesley.edu/~cs307/threejs/libs/three-r95.all.js">
+        "https://cs.wellesley.edu/~cs307/threejs/libs/three-r80.min.js"
+        </script>
+        <script src="https://cs.wellesley.edu/~cs307/threejs/libs/OrbitControls-r95.js">
+        "https://cs.wellesley.edu/~cs307/threejs/libs/OrbitControls-r80.js"
+        </script>
+        <script src="https://cs.wellesley.edu/~cs307/threejs/libs/dat.gui-r95.js">
+        "https://cs.wellesley.edu/~cs307/threejs/libs/dat.gui-r80.min.js"
+        </script>
+        <script src="https://cs.wellesley.edu/~cs307/threejs/libs/tw-sp21.js">
+        "https://cs.wellesley.edu/~cs307/threejs/libs/tw-fa18.js"
+        </script>
+        <!-- Refer to https://sbcode.net/threejs/csg/ to understand the logic of ThreeBSP -->
+        <script src="https://rawgit.com/Wilt/ThreeCSG/develop/ThreeCSG.js"></script>
+    </head>
+    <body>
+        <!-- <h1>
+            Creative Scene
+        </h1>
+        <h6>
+            created by Yihui Liao and Ivy Ho
+        </h6> -->
+        <!-- <p>
+            On this page, we have begun to build out a scene from the animated film Spirited Away which was directed by Hayao Miyazaki. 
+            This is the scene where a train that travels through shallow water is arriving at a "bus stop" in the middle of the water to bring the main character to her destination. 
+            We have built out the main components of the train's exterior, implemented water using a plane mapped with slightly transparent material, and also built the train tracks (made from box geoometries) on top of a rock path (texture mapped). 
+            In particular, the train is a fairly complex object in our scene since we used ThreeBSP to transform and merge multiple geometries, which gave us wonderful features like windows that are actually cut out of the train's geometry.
+            In terms of our future plans, we will add doors to the exterior of the train and seating to the interior of the train.
+            On the matter of implementing animations and user interaction, we will be coding our train to move across the screen on a key press. 
+            We also hope to be able to animate the water so that it flows like a real ocean.
+            On specific key presses or perhaps mouse clicks, we would also like to show a variety of camera perspectives on the scene.
+            Please look forward to our final version of the scene.
+        </p> -->
+        <script>
+
+            // create a scene
+            var scene = new THREE.Scene();
+
+            // ====================================================================
+            // prepare for scene objects
+
+            // object sizes
+            var params = {
+                groundDimension: 1000,
+                plankHeight: .25,
+				plankDepth: 5,
+				plankWidth: 1,
+				railZ: 1.5,
+				railWidth: .25,
+				railDepth: 3,
+                
+                // train car
+                width: 20, // x
+                height: 5, // y
+                depth: 6, // z
+                space: .25
+            };
+
+            var cameraParams = {
+                    near: 1,
+                    far: 100,
+                    fov: 90,
+                    aspectRatio: 800/500,
+                    atX: params.groundDimension,
+                    atY: 0,
+                    atZ: 0,
+                    eyeX: 0,
+                    eyeY: 50,
+                    eyeZ: 0,
+                    upX: 0,
+                    upY: 1,
+                    upZ: 0
+                  };
+
+            // setupCamera() function creates and returns a camera with the desired parameters
+            function setupCamera (cameraParameters) {
+                // set up an abbreviation 
+                var cp = cameraParameters;
+                // create an initial camera with the desired shape
+                var camera = new THREE.PerspectiveCamera(cp.fov, cp.aspectRatio, cp.near, cp.far);
+                // set the camera location and orientation
+                camera.position.set(cp.eyeX, cp.eyeY, cp.eyeZ);
+                camera.up.set(cp.upX, cp.upY, cp.upZ);
+                camera.lookAt(new THREE.Vector3(cp.atX, cp.atY, cp.atZ));
+                return camera;
+            }
+
+
+            // prepare materials
+            var materials;  
+            var colorMaterials;           
+            TW.loadTextures(["materials/rock.jpeg", "materials/concrete.jpeg", "materials/wood.jpg", "materials/metal.jpg", "materials/water.jpeg", "materials/plank.jpeg", "materials/sky.jpg", "materials/floor.jpg"],
+            function (textures) {
+                adjustTexture(textures[0], 200, 2, false);
+                adjustTexture(textures[1], 10, 3, false);
+                adjustTexture(textures[2], 1, 1, false);
+                adjustTexture(textures[3], 3, 1, false);
+                adjustTexture(textures[4], 50, 50, false);
+                adjustTexture(textures[5], 4, 1, false);
+                adjustTexture(textures[6], 1, 1, false);
+                adjustTexture(textures[7], 1, 1, false);
+
+
+                materials = [new THREE.MeshPhongMaterial({color: 0xffffff,  // 0 rock
+                                                        map: textures[0]}),
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 1 concrete
+                                                        map: textures[1]}),
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 2 water
+                                                        map: textures[4],
+                                                        side: THREE.DoubleSide}), 
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 3 wood
+                                                        map: textures[2]}),
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 4 metal
+                                                        map: textures[3]}),   
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 5 red plank
+                                                        map: textures[5]}),
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 6 sky
+                                                        map: textures[6],
+                                                        side: THREE.BackSide}),   
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 7 floor
+                                                        map: textures[7],
+                                                        side: THREE.DoubleSide}),                     
+                            ];
+
+                colorMaterials = [new THREE.MeshPhongMaterial({color: new THREE.Color(0xfcce8e), // 0 beige
+                                                        specular: new THREE.Color("dimgray"),
+                                                        shininess: 5,
+                                                        side: THREE.DoubleSide}),
+                                new THREE.MeshPhongMaterial({color: new THREE.Color(0x4395A0), // 1 blue
+                                                        specular: new THREE.Color("dimgray"),
+                                                        shininess: 5,
+                                                        side: THREE.DoubleSide}),   
+                                new THREE.MeshPhongMaterial({color: new THREE.Color(0x000000), // 2 black
+                                                        specular: new THREE.Color("dimgray"),
+                                                        shininess: 5,
+                                                        side: THREE.DoubleSide}),
+                                new THREE.MeshPhysicalMaterial({color: new THREE.Color(0xffffff), // 3 white??
+                                                        side: THREE.DoubleSide,
+                                                        transparent: true,
+                                                        opacity: .5,
+                                                        roughness: 0,
+                                                        reflectivity: 5,
+                                                        }),   
+                                new THREE.MeshPhongMaterial({color: new THREE.Color(0x730a00), // 4 red
+                                                        side: THREE.DoubleSide}), 
+                                new THREE.MeshPhongMaterial({color: new THREE.Color(0x2e201c), // 5 brown
+                                                        side: THREE.DoubleSide}), 
+                                ];
+                remakeScene();
+            });
+
+            // ====================================================================
+            // functions to create scene objects
+
+            function adjustTexture(texture, repeatH, repeatV, mirror) {
+                texture.repeat.set(repeatH,repeatV);
+                texture.needsUpdate = true;
+                if (mirror) {
+                    texture.wrapS = THREE.MirroredRepeatWrapping;
+                    texture.wrapT = THREE.MirroredRepeatWrapping;
+                } else {
+                    texture.wrapS = THREE.RepeatWrapping;
+                    texture.wrapT = THREE.RepeatWrapping;
+                }
+            }
+
+            function makeGround() {
+                var ground = new THREE.Object3D();
+
+                // blue plane for bottom of the sea
+                var plane1 = new THREE.PlaneGeometry(params.groundDimension, params.groundDimension);
+                var planeMesh1 = new THREE.Mesh(plane1, colorMaterials[1]);
+                planeMesh1.rotation.x = Math.PI/2;
+                ground.add(planeMesh1);
+
+                // blue plane for top of the sea
+                var plane2 = new THREE.PlaneGeometry(params.groundDimension, params.groundDimension);
+                var planeMesh2 = new THREE.Mesh(plane2, materials[2]);
+                planeMesh2.rotation.x = Math.PI/2;
+                planeMesh2.position.y = .5;
+                
+                // enable transparency
+                planeMesh2.material.transparent = true;
+                // set opacity to 50%
+                planeMesh2.material.opacity = 0.5; 
+                ground.add(planeMesh2);
+
+                // rock path
+                var path = new THREE.PlaneGeometry(params.groundDimension, params.groundDimension/100);
+
+                var pathMesh = new THREE.Mesh(path, materials[0]);
+                pathMesh.position.y = 0.01;
+                pathMesh.rotation.x = Math.PI/2;
+                pathMesh.material.side = THREE.DoubleSide;
+
+                ground.add(pathMesh);
+
+                // train tracks
+                var positionX = -200;
+                for (let i = 0; i <= 200; i++ ){
+                    var track = makeTracks();
+                    track.position.x = positionX + params.railDepth/2;
+                    positionX += params.railDepth/2;
+                    ground.add(track);
+                }
+                
+                return ground;
+            }
+
+            function makeTracks(){
+                var track = new THREE.Object3D();
+                
+				var height = params.plankHeight;
+				var depth = params.plankDepth;
+				var width = params.plankWidth;
+				var railZ = params.railZ;
+
+				var plankGeom = new THREE.BoxGeometry(width,height,depth);
+				var plankMesh = new THREE.Mesh(plankGeom, materials[3]);
+
+				var rail1 = makeRail();
+				var rail2 = makeRail();
+
+				rail1.position.z = railZ;
+				rail2.position.z = -railZ;
+
+				track.add(plankMesh)
+				track.add(rail1);
+				track.add(rail2);
+
+				return track;
+            }
+
+            function makeRail(){
+				var width = params.railWidth;
+				var height = params.plankHeight;
+				var depth = params.railDepth;
+
+				var railGeom = new THREE.BoxGeometry(width, height, depth);
+				var railMesh = new THREE.Mesh(railGeom, materials[4]);
+
+				railMesh.position.y = height;
+				railMesh.rotation.y = Math.PI/2;
+
+				return railMesh;
+			}
+
+            // returns a train car ThreeBSP geometry by merging a box and cylinder into one geometry
+            // uses offset to adjust location of geometry before becoming ThreeBSP
+            function makeTrainCarGeom(width, height, depth, offsetX, offsetY, offsetZ){
+       
+                // main length of box car and cylinder head
+                var boxGeom = new THREE.BoxGeometry(width, height, depth);
+                var cylinderGeom = new THREE.CylinderGeometry(depth/2, depth/2, height, 100);
+
+                // align them 
+                boxGeom.translate(width/2 + offsetX, height/2 + offsetY, offsetZ);
+                cylinderGeom.translate(width + offsetX, height/2 + offsetY, offsetZ);
+
+                // use ThreeBSP to union geometries
+                var bsp_boxGeom = new ThreeBSP(boxGeom);
+                var bsp_cylinderGeom = new ThreeBSP(cylinderGeom);
+
+                return bsp_boxGeom.union(bsp_cylinderGeom);
+            }
+
+            // function makeTrainCarGeomBevel(width, height, depth, offsetX, offsetY, offsetZ) {
+       
+            //     // main length of box car and beveled head
+            //     var boxGeom = new THREE.BoxGeometry(width, height, depth);
+            //     var triPrism1Geom = new THREE.CylinderGeometry(height/3, height/3, depth, 3);
+            //     var triPrism2Geom = new THREE.CylinderGeometry(height/2, height/2, depth, 3);
+            //     var cubeCutter = new THREE.BoxGeometry(height, height*5, depth);
+
+            //     // align them 
+            //     boxGeom.translate(width/2 + offsetX, height/2 + offsetY, offsetZ);
+            //     triPrism1Geom.translate(width + offsetX, offsetY, height/1.5 + offsetZ);
+            //     triPrism1Geom.rotateX(-Math.PI/2);
+            //     triPrism2Geom.translate(width*0.975 + offsetX, offsetY, height/4 + offsetZ);
+            //     triPrism2Geom.rotateX(-Math.PI/2);
+            //     triPrism2Geom.scale(1,6,1);
+            //     cubeCutter.translate(width + offsetX, height*3 + offsetY, + offsetZ);
+
+            //     // use ThreeBSP to union geometries
+            //     var bsp_boxGeom = new ThreeBSP(boxGeom);
+            //     var bsp_triPrism1Geom = new ThreeBSP(triPrism1Geom);
+            //     var bsp_triPrism2Geom = new ThreeBSP(triPrism2Geom);
+            //     var bsp_cubeCutter = new ThreeBSP(cubeCutter);
+
+
+            //     return bsp_boxGeom.union(bsp_triPrism1Geom.union(bsp_triPrism2Geom.subtract(bsp_cubeCutter)));
+            // }
+
+            function makeTrainCarGeomLowerBevel(width, height, depth, offsetX, offsetY, offsetZ) {
+       
+                // main length of box car and beveled head
+                var boxGeom = new THREE.BoxGeometry(width, height/2, depth);
+                var triPrismGeom = new THREE.CylinderGeometry(height/2, height/2, depth, 3);
+                var cubeCutter = new THREE.BoxGeometry(height, height*5, depth);
+
+                // align them 
+                boxGeom.translate(width/2 + offsetX, height/4 + offsetY, offsetZ);
+                triPrismGeom.translate(width*0.975 + offsetX, offsetY, height/4 + offsetZ);
+                triPrismGeom.rotateX(-Math.PI/2);
+                triPrismGeom.scale(1,6,1);
+                cubeCutter.translate(width + offsetX, height*3 + offsetY, + offsetZ);
+
+                // use ThreeBSP to union geometries
+                var bsp_boxGeom = new ThreeBSP(boxGeom);
+                var bsp_triPrismGeom = new ThreeBSP(triPrismGeom);
+                var bsp_cubeCutter = new ThreeBSP(cubeCutter);
+
+                return bsp_boxGeom.union(bsp_triPrismGeom.subtract(bsp_cubeCutter));
+            }
+
+            function makeTrainCarGeomUpperBevel(width, height, depth, offsetX, offsetY, offsetZ) {
+       
+                // main length of box car and beveled head
+                var boxGeom = new THREE.BoxGeometry(width, height/2, depth);
+                var triPrismGeom = new THREE.CylinderGeometry(height/3, height/3, depth, 3);
+
+                // align them 
+                boxGeom.translate(width/2 + offsetX, height*0.75 + offsetY, offsetZ);
+                triPrismGeom.translate(width + offsetX, offsetY, height/1.5 + offsetZ);
+                triPrismGeom.rotateX(-Math.PI/2);
+
+                // use ThreeBSP to union geometries
+                var bsp_boxGeom = new ThreeBSP(boxGeom);
+                var bsp_triPrismGeom = new ThreeBSP(triPrismGeom);
+
+                return bsp_boxGeom.union(bsp_triPrismGeom);
+            }
+
+            // takes a train car BSP geometry and adds windows but subtracting boxes from the car
+            function addWindowHoles(bspGeom, width, height) {
+                // cut out square windows
+                var windowGeom = new THREE.BoxGeometry(height/4, height/4, height*1.5);
+                windowGeom.translate( -0.65, height/1.35, 0 );
+
+                var bsp_window;
+                // cut out all the windows
+                for (let i = 0; i < 13; i++) {
+                    windowGeom.translate( 1.5, 0, 0 );
+                    bsp_window = new ThreeBSP(windowGeom);
+                    bspGeom = bspGeom.subtract(bsp_window);
+                }
+
+                // cut out triangle windows
+                windowGeom = new THREE.ConeGeometry(height/6, height/3, 8, 1, false, 0, Math.PI); // half a cone has the silhouette of a triangle
+                var geomCloser = new THREE.BoxGeometry(height/4, height/4, height/4);
+                windowGeom.translate( width, height/1.35, params.depth/2 );
+                geomCloser.translate( width+height/12, height/1.35, params.depth/2 );
+                bsp_window = new ThreeBSP(windowGeom);
+                var bsp_geomCloser = new ThreeBSP(geomCloser);
+                bspGeom = bspGeom.subtract(bsp_window.intersect(bsp_geomCloser));
+
+                windowGeom.translate( 0, 0, -params.depth );
+                geomCloser.translate( 0, 0, -params.depth );
+                bsp_window = new ThreeBSP(windowGeom);
+                bsp_geomCloser = new ThreeBSP(geomCloser);
+                bspGeom = bspGeom.subtract(bsp_window.intersect(bsp_geomCloser));
+
+                // cut out front windows
+                var windowGeom = new THREE.BoxGeometry(height, height/4, params.depth/2.5);
+                windowGeom.translate( width*1.01, height/1.35, params.depth*0.25 );
+                bsp_window = new ThreeBSP(windowGeom);
+                bspGeom = bspGeom.subtract(bsp_window);
+
+                windowGeom.translate( 0, 0, -params.depth*0.5 );
+                bsp_window = new ThreeBSP(windowGeom);
+                bspGeom = bspGeom.subtract(bsp_window);
+
+                return bspGeom;
+            }
+
+            // takes a geometry and material and returns the mesh
+            // method of producing the mesh varies depending on whether the geometry is 
+            // a regular THREE geometry or a ThreeBSP geometry (has been hollowed out)
+            function makeMesh(bsp_geom, material) {
+                var mesh = bsp_geom.toMesh();
+                mesh.material = material;
+
+                return mesh;
+            }
+
+            // makes two wheel holes for the train car in the shape of trapezoids
+            function addWheelHoles(bsp_geom, width, height, depth) {
+                // wheel hole is the shape of a trapezoid
+                var trapezoidGeom = new THREE.CylinderGeometry( width/12-0.5, width/12, height*0.99, 4, 1 );
+                trapezoidGeom.rotateY( Math.PI / 4 );
+                trapezoidGeom.scale( 1, 1, depth );
+                trapezoidGeom.translate(width/3, height/2.1, 0);
+
+                // add first hole
+                var bsp_trapezoid = new ThreeBSP(trapezoidGeom);
+                bsp_geom = bsp_geom.subtract(bsp_trapezoid);
+
+                // add second hole
+                trapezoidGeom.translate(width/1.5, 0, 0);
+                var bsp_trapezoid = new ThreeBSP(trapezoidGeom);
+                bsp_geom = bsp_geom.subtract(bsp_trapezoid);
+
+                return bsp_geom;
+            }
+
+            // add wheels to train car
+            function makeWheels(radius, material) {
+                var wheelSet = new THREE.Object3D();
+
+                // left wheel
+                var wheelGeom = new THREE.TorusGeometry( radius, radius/1.5, 16, 100 );
+                var wheelMesh = new THREE.Mesh(wheelGeom, material);
+                wheelMesh.position.x = -radius*1.7;
+                wheelSet.add(wheelMesh);
+
+                // right wheel
+                var wheelMesh = new THREE.Mesh(wheelGeom, material);
+                wheelMesh.position.x = radius*1.7;
+                wheelSet.add(wheelMesh);
+
+                return wheelSet;
+            }
+            
+            function makeTrainCarShape(width, height, depth, material, hollow){
+                var shapeGeom = makeTrainCarGeom(width, height, depth, 0, 0, 0);
+
+                if (hollow) {
+                    var shapeInsideGeom = makeTrainCarGeom(width, height, depth-0.3, 0.1, 0, 0);
+                    shapeGeom = shapeGeom.subtract(shapeInsideGeom);  // remove inside of train
+                    // shapeGeom = addWheelHoles(shapeGeom, width, height, depth); // make wheel holes
+                }
+
+                var shapeMesh = makeMesh(shapeGeom, material);
+
+                return shapeMesh;
+            }
+
+            function makeInterior(width, height, depth, material){
+                
+                // make train car body with holes for windows
+                var carGeomLower = makeTrainCarGeomLowerBevel(width, height, depth, 0, 0, 0);
+                var carGeomUpper = makeTrainCarGeomUpperBevel(width, height, depth, 0, 0, 0);
+                var carGeom = carGeomLower.union(carGeomUpper);
+
+                carGeom = addWindowHoles(carGeom, width, height);
+                var carInsideGeom = makeTrainCarGeomLowerBevel(width-0.3, height, depth-0.1, 0.1, 0, 0).union(makeTrainCarGeomUpperBevel(width-0.3, height, depth-0.5, 0.1, 0, 0));
+                carGeom = carGeom.subtract(carInsideGeom);  // remove inside of train
+                var carMesh = makeMesh(carGeom, material);
+
+                return carMesh;
+            }
+
+            function makeTrainCar(width, height, depth, material) {
+                var car = new THREE.Object3D();
+                
+                // make train car body with holes for windows
+                var carGeomLower = makeTrainCarGeomLowerBevel(width, height, depth, 0, 0, 0);
+                var carGeomUpper = makeTrainCarGeomUpperBevel(width, height, depth, 0, 0, 0);
+                var carGeom = carGeomLower.union(carGeomUpper);
+
+                carGeom = addWindowHoles(carGeom, width, height);
+                var carInsideGeom = makeTrainCarGeomLowerBevel(width-0.3, height, depth-0.1, 0.1, 0, 0).union(makeTrainCarGeomUpperBevel(width-0.3, height, depth-0.5, 0.1, 0, 0));
+                carGeom = carGeom.subtract(carInsideGeom);  // remove inside of train
+                var carMesh = makeMesh(carGeom, material);
+                car.add(carMesh);
+
+                // add red planking to the side of the train car
+                var plankingGeom = makeTrainCarGeomLowerBevel(width+0.25, height, depth+0.15, 0, 0, 0);
+                var plankingInsideGeom = makeTrainCarGeomLowerBevel(width, height, depth-0.15, 0.1, 0, 0);
+                plankingGeom = plankingGeom.subtract(plankingInsideGeom);  // remove inside of plank prism
+                var planking = makeMesh(plankingGeom, materials[5]);
+                planking.position.x = -0.1;
+                car.add(planking);
+
+                // add train bottom
+                var bottomGeom = new THREE.BoxGeometry(width*1.1, height/10, depth);
+                bottomGeom.translate(width*0.55, height/20, 0);
+                var bsp_bottom = addWheelHoles(new ThreeBSP(bottomGeom), width, height/10, depth);
+                var bottom = makeMesh(bsp_bottom, colorMaterials[4]);
+                bottom.position.y = -height/10;
+                car.add(bottom);
+
+                // add four wheel sets
+                var wheelSet1 = makeWheels(height/15, colorMaterials[2]);
+                wheelSet1.position.set(width/3, -height/12, depth/2-height/15);
+                car.add(wheelSet1);
+                var wheelSet2 = makeWheels(height/15, colorMaterials[2]);
+                wheelSet2.position.set(width, -height/12, depth/2-height/15);
+                car.add(wheelSet2);
+                var wheelSet3 = makeWheels(height/15, colorMaterials[2]);
+                wheelSet3.position.set(width/3, -height/12, -(depth/2-height/15));
+                car.add(wheelSet3);
+                var wheelSet4 = makeWheels(height/15, colorMaterials[2]);
+                wheelSet4.position.set(width, -height/12, -(depth/2-height/15));
+                car.add(wheelSet4);
+
+                // add train top
+                var topGeom = new THREE.BoxGeometry(width*1.01, height/10, depth);
+                var top = new THREE.Mesh(topGeom, colorMaterials[4]);
+                top.position.set(width/2, height*1.05, 0);
+                car.add(top);
+
+                // add "glass" to windows
+                var windowGeom = makeTrainCarGeomUpperBevel(width-0.1, height, depth - 0.1, 0, 0, 0);
+                var windowInsideGeom = makeTrainCarGeomUpperBevel(width-0.3, height, depth - 0.4, 0.1, 0, 0);
+                windowGeom = windowGeom.subtract(windowInsideGeom); // remove inside of glass prism
+                var window = makeMesh(windowGeom, colorMaterials[3]);
+                car.add(window);
+
+                // wood
+                var interior = makeInterior(width - 0.2, height, depth - 0.2, colorMaterials[5]);
+                interior.position.x = .1;
+                car.add(interior);
+
+                // add cylinders on top to decorate
+                var smallCyl1 = makeTrainTopCylinder(1.5, .5, colorMaterials[4]);
+                var smallCyl2 = makeTrainTopCylinder(1.5, .5, colorMaterials[4]);
+                var longCyl = makeTrainTopCylinderLong(2, 1.5, .5, colorMaterials[4]);
+                smallCyl1.position.set(width*0.85, height + 0.5, 0); // front side of car
+                smallCyl2.position.set(width*0.15, height + 0.5, 0); // back side of car
+                longCyl.position.set(width*0.5, height + 0.5, 0); // center of train car x-wise
+                car.add(smallCyl1);
+                car.add(smallCyl2);
+                car.add(longCyl);
+
+                // add train headlight with light beam
+                var spotlight = makeSpotlight(.5, 1, 1, 1, colorMaterials[0], colorMaterials[4], 1);
+                spotlight.position.set(width, height, 0);
+                var light = new THREE.SpotLight(0xffffff, 1, 0, TW.degrees2radians(20), 0, 1);
+                light.position.set(width, height, 0);
+                light.target.position.set(30, 0, 0);
+                car.add(spotlight);
+                car.add(light);
+                car.add(light.target);
+
+                // add flooring to car
+                var floor = makeFloor(width*1.08, depth);
+                floor.position.set(width*0.54, height/15, 0);
+                car.add(floor);
+
+                return car;
+            }
+
+            function makeTrain(){
+                var train = new THREE.Object3D();
+
+                var space = params.space;
+                // make two base car geometries
+                var car1 = makeTrainCar(params.width, params.height, params.depth, colorMaterials[0]);
+                var car2 = makeTrainCar(params.width, params.height, params.depth, colorMaterials[0]);
+                car1.position.x = space;
+                car2.position.x = -space;
+                car2.rotation.y = Math.PI;
+
+                train.add(car1);
+                train.add(car2);
+
+                var connector = addConnector();
+
+                train.add(connector);
+
+                return train;
+            }
+
+            function makeSign(radius, height){
+                var sign = new THREE.Object3D();
+
+                var barGeom = new THREE.CylinderGeometry(radius, radius, height, 32);
+                var barMesh = new THREE.Mesh(barGeom, materials[4]);
+
+                var plateGeom = new THREE.CylinderGeometry(radius * 10, radius * 10, radius + .2, 32);
+                var plateMesh = new THREE.Mesh(plateGeom, colorMaterials[4]);
+
+                plateMesh.rotation.x = Math.PI/2;
+                plateMesh.position.y = height/2;
+
+                sign.add(barMesh);
+                sign.add(plateMesh);
+
+                return sign; 
+
+            }
+
+            function makeFloor(width, height){
+                
+                var floor = new THREE.Object3D();
+
+                var planeGeom = new THREE.PlaneGeometry(width, height);
+                var planeMesh = new THREE.Mesh(planeGeom, materials[7]);
+
+                planeMesh.rotation.x = Math.PI/2;
+
+                floor.add(planeMesh);
+
+                return floor;
+            }
+
+            function makeSpotlight(radius, width, height, depth, coneMaterial, boxMaterial, side){
+
+                var spotlight = new THREE.Object3D();
+
+                var boxGeom = new THREE.BoxGeometry(width, height, depth);
+                var boxMesh = new THREE.Mesh(boxGeom, boxMaterial);
+
+                boxMesh.position.y = height/2;
+
+                var coneGeom = new THREE.ConeGeometry(radius, width, 64, 1, true);
+                var coneMesh = new THREE.Mesh(coneGeom, coneMaterial);
+
+                coneMesh.rotation.z = side * Math.PI/2;
+                coneMesh.position.x = side * .5;
+                coneMesh.position.y = width/2;
+
+                var sphereGeom = new THREE.SphereGeometry(radius/2, 32, 16 );
+                var sphereMesh = new THREE.Mesh(sphereGeom, colorMaterials[3]);
+
+                sphereMesh.position.x = side * .5;
+                sphereMesh.position.y = width/2;
+                
+                spotlight.add(boxMesh);
+                spotlight.add(coneMesh);
+                spotlight.add(sphereMesh);
+
+                return spotlight;
+            }
+
+            function makeTrainTopCylinder(radius, height, material){
+
+                var cylinder = new THREE.Object3D();
+                
+                var cylinderGeom = new THREE.CylinderGeometry(radius, radius, height, 20);
+                var cylinderMesh = new THREE.Mesh(cylinderGeom, material);
+                cylinderMesh.position.y = height/2;
+                cylinder.add(cylinderMesh);
+
+                return cylinder;
+            }
+
+            function makeTrainTopCylinderLong(width, radius, height, material){
+
+                var cylinderLong = new THREE.Object3D();
+
+                var cylinder1 = makeTrainTopCylinder(radius, height, material);
+                var cylinder2 = makeTrainTopCylinder(radius, height, material);
+
+                cylinder1.position.x = width/2;
+                cylinder2.position.x = -width/2;
+
+                var boxGeom = new THREE.BoxGeometry(width, height, radius * 2);
+                var boxMesh = new THREE.Mesh(boxGeom, material);
+                boxMesh.position.y = height/2;
+
+                cylinderLong.add(boxMesh);
+                cylinderLong.add(cylinder1);
+                cylinderLong.add(cylinder2);
+
+                return cylinderLong;
+            }
+
+            function makeWindowEnds(side){
+
+                var window = new THREE.Object3D();
+
+                var cylinderGeom = new THREE.CylinderGeometry(5, 5, 20, 32);
+                // var cylinderGeom = 
+            }
+
+            function addConnector(){
+
+                var connector = new THREE.Object3D();
+
+                var space = params.space;
+                var width = space * 2 - .1;
+                var height = params.height - .5;
+                var depth = params.depth - .5;
+
+                var boxGeom = new THREE.BoxGeometry(width, height, depth);
+                var boxMesh = new THREE.Mesh(boxGeom, colorMaterials[2]);
+                boxMesh.position.y = height/2;
+
+                connector.add(boxMesh);
+
+                return connector;
+            }
+
+
+            // make train station platform
+            function makePlatform() {
+                // make plane size relative to ground size
+                var dimension = params.groundDimension;
+                var platHeight = 1;
+
+                var platGeom = new THREE.CylinderGeometry( dimension/200, dimension/160, platHeight, 4, 1 );
+                platGeom.rotateY( Math.PI / 4 );
+                platGeom.scale( 6, 1, 1 );
+                // var platGeom = new THREE.BoxGeometry(dimension/50, platHeight, dimension/200);
+                var platMesh = new THREE.Mesh(platGeom, materials[1])
+                platMesh.position.set(-20, platHeight/2 + 0.01, -params.plankDepth*2); // add a little extra on y so it doesn't glitch
+
+                return platMesh;
+            }
+
+
+            function makeSphere(){
+                var sphereGeom = new THREE.SphereGeometry(100, 32, 16);
+                var sphereMesh = new THREE.Mesh(sphereGeom, materials[6]);
+
+                return sphereMesh;
+            }
+
+            // render the scene
+            function remakeScene() {
+                var ground = makeGround();
+                scene.add(ground);
+
+                var plat = makePlatform();
+                scene.add(plat);
+
+                var train = makeTrain();
+                train.position.y = 1;
+                scene.add(train);
+
+                // var sphere = makeSphere();
+                // scene.add(sphere);
+
+
+                var sign = makeSign(.1, 5);
+                sign.position.set(-38, 3, -10);
+                scene.add(sign);
+
+                TW.render();
+            }
+
+            
+            // ====================================================================
+            // make lights
+
+            // 55% intensity
+            var ambLight = new THREE.AmbientLight(new THREE.Color("white"), 0.55);
+            scene.add(ambLight);
+            
+            // directional light coming from slightly right, front, and up direction
+            var dirLight = new THREE.DirectionalLight( TW.WHITE, 0.7 );
+            dirLight.position.set( 0.7, 0.9, 1 );
+            // dirLight.position.set(0, 5, 10);
+            scene.add(dirLight);
+
+            // ====================================================================
+            // set up renderer
+            var renderer = new THREE.WebGLRenderer();
+
+            TW.mainInit(renderer,scene);
+
+            // create camera, add to scene, and render scene with new camera
+            function renderNewFrame() {
+                var camera = setupCamera(cameraParams);
+                scene.add(camera);
+                renderer.render(scene,camera);
+            }
+
+            // set up default camera
+            TW.cameraSetup(renderer,
+                            scene,
+                            {minx: -10, maxx: 10,
+                            miny: 0, maxy: 10,
+                            minz: -10, maxz: 10});
+
+            // ====================================================================
+
+        </script>
+    </body>
+</html>
