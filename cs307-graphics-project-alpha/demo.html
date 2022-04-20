@@ -15,13 +15,6 @@
                 margin: 0;
                 padding: 0;
             }
-
-            canvas {
-                display: block;
-                margin: 10px auto;
-                width: 100%;
-                height: 100%;
-            }
         </style>
 
         <script src="https://cs.wellesley.edu/~cs307/threejs/libs/three-r95.all.js">
@@ -40,30 +33,9 @@
         <script src="https://rawgit.com/Wilt/ThreeCSG/develop/ThreeCSG.js"></script>
     </head>
     <body>
-        <!-- <h1>
-            Creative Scene
-        </h1>
-        <h6>
-            created by Yihui Liao and Ivy Ho
-        </h6> -->
-        <!-- <p>
-            On this page, we have begun to build out a scene from the animated film Spirited Away which was directed by Hayao Miyazaki. 
-            This is the scene where a train that travels through shallow water is arriving at a "bus stop" in the middle of the water to bring the main character to her destination. 
-            We have built out the main components of the train's exterior, implemented water using a plane mapped with slightly transparent material, and also built the train tracks (made from box geoometries) on top of a rock path (texture mapped). 
-            In particular, the train is a fairly complex object in our scene since we used ThreeBSP to transform and merge multiple geometries, which gave us wonderful features like windows that are actually cut out of the train's geometry.
-            In terms of our future plans, we will add doors to the exterior of the train and seating to the interior of the train.
-            On the matter of implementing animations and user interaction, we will be coding our train to move across the screen on a key press. 
-            We also hope to be able to animate the water so that it flows like a real ocean.
-            On specific key presses or perhaps mouse clicks, we would also like to show a variety of camera perspectives on the scene.
-            Please look forward to our final version of the scene.
-        </p> -->
         <script>
-
-            // create a scene
-            var scene = new THREE.Scene();
-
             // ====================================================================
-            // prepare for scene objects
+            // set parameters for scene objects
 
             // object sizes
             var params = {
@@ -79,29 +51,33 @@
                 width: 20, // x
                 height: 5, // y
                 depth: 6, // z
-                space: .25
+                space: .25,
+                
+                wait: 3000, // wait time at stop in milliseconds
+                hasStopped: false, // if stopped yet in the current cycle
+                moving: true, // keeps track of whether train is in motion
             };
 
             var cameraParams = {
                     near: 1,
-                    far: 100,
-                    fov: 90,
-                    aspectRatio: 800/500,
+                    far: params.groundDimension,
+                    fov: 100,
+                    aspectRatio: window.innerWidth/window.innerHeight,
                     atX: params.groundDimension,
                     atY: 0,
                     atZ: 0,
                     eyeX: 0,
-                    eyeY: 50,
-                    eyeZ: 0,
+                    eyeY: 10,
+                    eyeZ: 50,
                     upX: 0,
                     upY: 1,
                     upZ: 0
                   };
 
             // setupCamera() function creates and returns a camera with the desired parameters
-            function setupCamera (cameraParameters) {
+            function setupCamera() {
                 // set up an abbreviation 
-                var cp = cameraParameters;
+                var cp = cameraParams;
                 // create an initial camera with the desired shape
                 var camera = new THREE.PerspectiveCamera(cp.fov, cp.aspectRatio, cp.near, cp.far);
                 // set the camera location and orientation
@@ -111,11 +87,50 @@
                 return camera;
             }
 
+            // ====================================================================
+            // initialize environment
+
+            let scene, camera, renderer, skyboxGeo, skybox, controls, train;
+
+            function init() {
+                scene = new THREE.Scene();
+                camera = setupCamera();
+
+                renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.domElement.id = "canvas";
+                document.body.appendChild(renderer.domElement);
+
+                controls = new THREE.OrbitControls(camera, renderer.domElement);
+                controls.enabled = true;
+                controls.maxDistance = params.groundDimension;
+
+                skyboxGeo = new THREE.BoxGeometry(params.groundDimension, params.groundDimension, params.groundDimension);
+                skybox = new THREE.Mesh(skyboxGeo, skyMaterials);
+                scene.add(skybox);
+
+                window.addEventListener('resize', onWindowResize, false);
+
+                remakeScene();
+                animate();
+            };
+            
+            function onWindowResize() {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            };
+
+            // ====================================================================
+            // load textures and make scene
 
             // prepare materials
             var materials;  
-            var colorMaterials;           
-            TW.loadTextures(["materials/rock.jpeg", "materials/concrete.jpeg", "materials/wood.jpg", "materials/metal.jpg", "materials/water.jpeg", "materials/plank.jpeg", "materials/sky.jpg", "materials/floor.jpg"],
+            var colorMaterials; 
+            var skyMaterials;          
+            TW.loadTextures(["materials/rock.jpeg", "materials/concrete.jpeg", "materials/wood.jpg", "materials/metal.jpg", 
+                            "materials/water.jpeg", "materials/plank.jpeg", "materials/sky.jpg", "materials/floor.jpg", 
+                            "materials/right.png", "materials/left.png", "materials/top.png", "materials/bottom.png", "materials/front.png", "materials/back.png"],
             function (textures) {
                 adjustTexture(textures[0], 200, 2, false);
                 adjustTexture(textures[1], 10, 3, false);
@@ -160,20 +175,25 @@
                                                         specular: new THREE.Color("dimgray"),
                                                         shininess: 5,
                                                         side: THREE.DoubleSide}),
-                                new THREE.MeshPhysicalMaterial({color: new THREE.Color(0xffffff), // 3 white??
+                                new THREE.MeshPhysicalMaterial({color: new THREE.Color(0xffffff), // 3 glass
                                                         side: THREE.DoubleSide,
                                                         transparent: true,
-                                                        opacity: .5,
+                                                        opacity: .4,
                                                         roughness: 0,
                                                         reflectivity: 5,
+                                                        shininess: 30
                                                         }),   
                                 new THREE.MeshPhongMaterial({color: new THREE.Color(0x730a00), // 4 red
                                                         side: THREE.DoubleSide}), 
                                 new THREE.MeshPhongMaterial({color: new THREE.Color(0x2e201c), // 5 brown
                                                         side: THREE.DoubleSide}), 
                                 ];
-                remakeScene();
-                animate();
+
+                skyMaterials = textures.slice(8,14).map(texture => {
+                                return new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide });
+                            });
+
+                init();
             });
 
             // ====================================================================
@@ -194,11 +214,11 @@
             function makeGround() {
                 var ground = new THREE.Object3D();
 
-                // blue plane for bottom of the sea
-                var plane1 = new THREE.PlaneGeometry(params.groundDimension, params.groundDimension);
-                var planeMesh1 = new THREE.Mesh(plane1, colorMaterials[1]);
-                planeMesh1.rotation.x = Math.PI/2;
-                ground.add(planeMesh1);
+                // // blue plane for bottom of the sea
+                // var plane1 = new THREE.PlaneGeometry(params.groundDimension, params.groundDimension);
+                // var planeMesh1 = new THREE.Mesh(plane1, colorMaterials[1]);
+                // planeMesh1.rotation.x = Math.PI/2;
+                // ground.add(planeMesh1);
 
                 // blue plane for top of the sea
                 var plane2 = new THREE.PlaneGeometry(params.groundDimension, params.groundDimension);
@@ -271,52 +291,6 @@
 
 				return railMesh;
 			}
-
-            // returns a train car ThreeBSP geometry by merging a box and cylinder into one geometry
-            // uses offset to adjust location of geometry before becoming ThreeBSP
-            function makeTrainCarGeom(width, height, depth, offsetX, offsetY, offsetZ){
-       
-                // main length of box car and cylinder head
-                var boxGeom = new THREE.BoxGeometry(width, height, depth);
-                var cylinderGeom = new THREE.CylinderGeometry(depth/2, depth/2, height, 100);
-
-                // align them 
-                boxGeom.translate(width/2 + offsetX, height/2 + offsetY, offsetZ);
-                cylinderGeom.translate(width + offsetX, height/2 + offsetY, offsetZ);
-
-                // use ThreeBSP to union geometries
-                var bsp_boxGeom = new ThreeBSP(boxGeom);
-                var bsp_cylinderGeom = new ThreeBSP(cylinderGeom);
-
-                return bsp_boxGeom.union(bsp_cylinderGeom);
-            }
-
-            // function makeTrainCarGeomBevel(width, height, depth, offsetX, offsetY, offsetZ) {
-       
-            //     // main length of box car and beveled head
-            //     var boxGeom = new THREE.BoxGeometry(width, height, depth);
-            //     var triPrism1Geom = new THREE.CylinderGeometry(height/3, height/3, depth, 3);
-            //     var triPrism2Geom = new THREE.CylinderGeometry(height/2, height/2, depth, 3);
-            //     var cubeCutter = new THREE.BoxGeometry(height, height*5, depth);
-
-            //     // align them 
-            //     boxGeom.translate(width/2 + offsetX, height/2 + offsetY, offsetZ);
-            //     triPrism1Geom.translate(width + offsetX, offsetY, height/1.5 + offsetZ);
-            //     triPrism1Geom.rotateX(-Math.PI/2);
-            //     triPrism2Geom.translate(width*0.975 + offsetX, offsetY, height/4 + offsetZ);
-            //     triPrism2Geom.rotateX(-Math.PI/2);
-            //     triPrism2Geom.scale(1,6,1);
-            //     cubeCutter.translate(width + offsetX, height*3 + offsetY, + offsetZ);
-
-            //     // use ThreeBSP to union geometries
-            //     var bsp_boxGeom = new ThreeBSP(boxGeom);
-            //     var bsp_triPrism1Geom = new ThreeBSP(triPrism1Geom);
-            //     var bsp_triPrism2Geom = new ThreeBSP(triPrism2Geom);
-            //     var bsp_cubeCutter = new ThreeBSP(cubeCutter);
-
-
-            //     return bsp_boxGeom.union(bsp_triPrism1Geom.union(bsp_triPrism2Geom.subtract(bsp_cubeCutter)));
-            // }
 
             function makeTrainCarGeomLowerBevel(width, height, depth, offsetX, offsetY, offsetZ) {
        
@@ -715,31 +689,22 @@
             function makePlatform() {
                 // make plane size relative to ground size
                 var dimension = params.groundDimension;
-                var platHeight = 1;
+                var platHeight = 1.5;
 
-                var platGeom = new THREE.CylinderGeometry( dimension/200, dimension/160, platHeight, 4, 1 );
+                var platGeom = new THREE.CylinderGeometry( dimension/130, dimension/100, platHeight, 4, 1 );
                 platGeom.rotateY( Math.PI / 4 );
                 platGeom.scale( 6, 1, 1 );
                 // var platGeom = new THREE.BoxGeometry(dimension/50, platHeight, dimension/200);
                 var platMesh = new THREE.Mesh(platGeom, materials[1])
-                platMesh.position.set(-20, platHeight/2 + 0.01, -params.plankDepth*2); // add a little extra on y so it doesn't glitch
+                platMesh.position.set(-10, platHeight*0.5, -params.plankDepth*2); // add a little extra on y so it doesn't glitch
 
                 return platMesh;
             }
 
-
-            function makeSphere(){
-                var sphereGeom = new THREE.SphereGeometry(100, 32, 16);
-                var sphereMesh = new THREE.Mesh(sphereGeom, materials[6]);
-
-                return sphereMesh;
-            }
-
-
-            var train;
-
             // render the scene
             function remakeScene() {
+                addLighting();
+
                 var ground = makeGround();
                 scene.add(ground);
 
@@ -748,94 +713,91 @@
 
                 train = makeTrain();
                 train.position.y = 1;
-                train.position.x = -100;
+                train.position.x = -params.groundDimension/2;
                 scene.add(train);
-
-                // var sphere = makeSphere();
-                // scene.add(sphere);
-
 
                 var sign = makeSign(.1, 5);
                 sign.position.set(-38, 3, -10);
                 scene.add(sign);
 
-                var sign2 = makeSign(.1, 5);
-                sign2.position.x = 100;
-                scene.add(sign2);
-
-                TW.render();
+                render();
             }
             // ====================================================================
             // make lights
 
-            // 55% intensity
-            var ambLight = new THREE.AmbientLight(new THREE.Color("white"), 0.55);
-            scene.add(ambLight);
+            function addLighting() {
+                // 55% intensity
+                var ambLight = new THREE.AmbientLight(new THREE.Color("white"), 0.55);
+                scene.add(ambLight);
+                
+                // directional light coming from slightly right, front, and up direction
+                var dirLight = new THREE.DirectionalLight( TW.WHITE, 0.7 );
+                dirLight.position.set( 0.7, 0.9, 1 );
+                // dirLight.position.set(0, 5, 10);
+                scene.add(dirLight);
+            }
             
-            // directional light coming from slightly right, front, and up direction
-            var dirLight = new THREE.DirectionalLight( TW.WHITE, 0.7 );
-            dirLight.position.set( 0.7, 0.9, 1 );
-            // dirLight.position.set(0, 5, 10);
-            scene.add(dirLight);
-
             // ====================================================================
             // animation 
 
-            // var animationState;
+            var animationState;
 
-            // function resetAnimationState(){
-            //     animationState = {
-            //         rx: .2
-            //     }
-            // }
-
-            // resetAnimationState();
-
-            // function updateState(){
-            //     animationState.rx += .2;
-            //     train.position.x = animationState.rx;
-            // }
-
-            function oneStep() {
-                // animationState.rx = .2;
-                train.position.x += .2;
-
-                if (train.position.x >= 100) {
-                    train.position.x = -100;
+            function resetAnimationState() {
+                animationState = {
+                    rx: 1.2
                 }
-                TW.render();
+            }
+            resetAnimationState();
+
+            function pauseAnimation() {
+                animationState.rx = 0;
+                params.moving = false;
             }
 
-            var animationId = null;
+            function increaseSpeed() {
+                animationState.rx += .003;
+            }
+
+            function decreaseSpeed() {
+                animationState.rx -= .00145;
+            }
+
+            function oneStep() {
+                train.position.x += animationState.rx;
+
+                if (params.moving) {
+                    // restart train at left end
+                    if (train.position.x >= params.groundDimension/2) {
+                        train.position.x = -params.groundDimension/2;
+                        params.hasStopped = false;
+                        resetAnimationState();
+                    }
+                    // pause train at the platform
+                    else if (train.position.x > -5) {
+                        if (!params.hasStopped) {
+                            params.hasStopped = true;
+                            pauseAnimation();
+                            setTimeout(() => { params.moving = true; }, params.wait); // restart animation after wait
+                        } else {
+                            increaseSpeed();
+                        }
+                    } else {
+                        decreaseSpeed();
+                    }
+                }
+
+                render();
+            }
 
             function animate() {
                 oneStep();
+                renderer.render(scene, camera);
                 requestAnimationFrame(animate);
             }
 
-            
-                        
-            
-
-            // ====================================================================
-            // set up renderer
-            var renderer = new THREE.WebGLRenderer();
-
-            TW.mainInit(renderer,scene);
-
-            // create camera, add to scene, and render scene with new camera
-            function renderNewFrame() {
-                var camera = setupCamera(cameraParams);
-                scene.add(camera);
-                renderer.render(scene,camera);
+            function render() {
+                renderer.render(scene, camera);
             }
-
-            // set up default camera
-            TW.cameraSetup(renderer,
-                            scene,
-                            {minx: -10, maxx: 10,
-                            miny: 0, maxy: 10,
-                            minz: -10, maxz: 10});
 
             // ====================================================================
 
