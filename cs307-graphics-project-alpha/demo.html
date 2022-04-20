@@ -173,6 +173,7 @@
                                                         side: THREE.DoubleSide}), 
                                 ];
                 remakeScene();
+                animate();
             });
 
             // ====================================================================
@@ -734,6 +735,9 @@
                 return sphereMesh;
             }
 
+
+            var train;
+
             // render the scene
             function remakeScene() {
                 var ground = makeGround();
@@ -742,8 +746,9 @@
                 var plat = makePlatform();
                 scene.add(plat);
 
-                var train = makeTrain();
+                train = makeTrain();
                 train.position.y = 1;
+                train.position.x = -100;
                 scene.add(train);
 
                 // var sphere = makeSphere();
@@ -754,10 +759,12 @@
                 sign.position.set(-38, 3, -10);
                 scene.add(sign);
 
+                var sign2 = makeSign(.1, 5);
+                sign2.position.x = 100;
+                scene.add(sign2);
+
                 TW.render();
             }
-
-            
             // ====================================================================
             // make lights
 
@@ -770,6 +777,45 @@
             dirLight.position.set( 0.7, 0.9, 1 );
             // dirLight.position.set(0, 5, 10);
             scene.add(dirLight);
+
+            // ====================================================================
+            // animation 
+
+            // var animationState;
+
+            // function resetAnimationState(){
+            //     animationState = {
+            //         rx: .2
+            //     }
+            // }
+
+            // resetAnimationState();
+
+            // function updateState(){
+            //     animationState.rx += .2;
+            //     train.position.x = animationState.rx;
+            // }
+
+            function oneStep() {
+                // animationState.rx = .2;
+                train.position.x += .2;
+
+                if (train.position.x >= 100) {
+                    train.position.x = -100;
+                }
+                TW.render();
+            }
+
+            var animationId = null;
+
+            function animate() {
+                oneStep();
+                requestAnimationFrame(animate);
+            }
+
+            
+                        
+            
 
             // ====================================================================
             // set up renderer
