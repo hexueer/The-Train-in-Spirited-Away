@@ -56,6 +56,7 @@
                 wait: 3000, // wait time at stop in milliseconds
                 hasStopped: false, // if stopped yet in the current cycle
                 moving: true, // keeps track of whether train is in motion
+                insideTrain: false, // camera view should be inside train now
             };
 
             var cameraParams = {
@@ -93,7 +94,7 @@
             let scene, camera, renderer, skyboxGeo, skybox, controls, train;
             // wheels need to be global to rotate
             let w1, w2, w3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13, w14, w15, w16;
-            let wheelList = [];
+            let wheelList;
 
             function init() {
                 scene = new THREE.Scene();
@@ -198,7 +199,8 @@
                 init();
                 TW.mainInit(renderer,scene);
                 TW.setKeyboardCallback('a', showTrainSideView, "train side view", false);
-                TW.setKeyboardCallback('b', showInsideTrain, "inside train", false);
+                TW.setKeyboardCallback('s', followTrainSideView, "follow train side view", false);
+                TW.setKeyboardCallback('d', showInsideTrain, "inside train", false);
             });
 
             // ====================================================================
@@ -416,42 +418,43 @@
                 var displacement = params.space; // displaced 
                 // use same wheel shape for every wheel
                 var wheelGeom = new THREE.TorusGeometry( height/15, height/22.5, 16, 100 );
+                wheelGeom.scale(1,1.15,1);
 
                 // right train
                 // 1st wheel
                 w1 = new THREE.Mesh(wheelGeom, material);
-                w1.position.set(width/3 - space, -height/12, depth/2-height/15)
+                w1.position.set(width/3 - space + displacement, -height/12, depth/2-height/15)
                 wheelSet.add(w1);
                 // adjacent wheel
                 w2 = new THREE.Mesh(wheelGeom, material);
-                w2.position.set(width/3 + space, -height/12, depth/2-height/15)
+                w2.position.set(width/3 + space + displacement, -height/12, depth/2-height/15)
                 wheelSet.add(w2);
 
                 // 3rd wheel
                 w3 = new THREE.Mesh(wheelGeom, material);
-                w3.position.set(width - space, -height/12, depth/2-height/15)
+                w3.position.set(width - space + displacement, -height/12, depth/2-height/15)
                 wheelSet.add(w3);
                 // adjacent wheel
                 w4 = new THREE.Mesh(wheelGeom, material);
-                w4.position.set(width + space, -height/12, depth/2-height/15)
+                w4.position.set(width + space + displacement, -height/12, depth/2-height/15)
                 wheelSet.add(w4);
 
                 // 5th wheel
                 w5 = new THREE.Mesh(wheelGeom, material);
-                w5.position.set(width/3 - space, -height/12, -(depth/2-height/15))
+                w5.position.set(width/3 - space + displacement, -height/12, -(depth/2-height/15))
                 wheelSet.add(w5);
                 // adjacent wheel
                 w6 = new THREE.Mesh(wheelGeom, material);
-                w6.position.set(width/3 + space, -height/12, -(depth/2-height/15))
+                w6.position.set(width/3 + space + displacement, -height/12, -(depth/2-height/15))
                 wheelSet.add(w6);
 
                 // 7th wheel
                 w7 = new THREE.Mesh(wheelGeom, material);
-                w7.position.set(width - space, -height/12, -(depth/2-height/15))
+                w7.position.set(width - space + displacement, -height/12, -(depth/2-height/15))
                 wheelSet.add(w7);
                 // adjacent wheel
                 w8 = new THREE.Mesh(wheelGeom, material);
-                w8.position.set(width + space, -height/12, -(depth/2-height/15))
+                w8.position.set(width + space + displacement, -height/12, -(depth/2-height/15))
                 wheelSet.add(w8);
 
                 // left train
@@ -554,20 +557,6 @@
                 bottom.position.y = -height/10;
                 car.add(bottom);
 
-                // add four wheel sets
-                // var wheelSet1 = makeWheels(height/15, colorMaterials[2]);
-                // wheelSet1.position.set(width/3, -height/12, depth/2-height/15);
-                // car.add(wheelSet1);
-                // var wheelSet2 = makeWheels(height/15, colorMaterials[2]);
-                // wheelSet2.position.set(width, -height/12, depth/2-height/15);
-                // car.add(wheelSet2);
-                // var wheelSet3 = makeWheels(height/15, colorMaterials[2]);
-                // wheelSet3.position.set(width/3, -height/12, -(depth/2-height/15));
-                // car.add(wheelSet3);
-                // var wheelSet4 = makeWheels(height/15, colorMaterials[2]);
-                // wheelSet4.position.set(width, -height/12, -(depth/2-height/15));
-                // car.add(wheelSet4);
-
                 // add train top
                 var topGeom = new THREE.BoxGeometry(width*1.01, height/10, depth);
                 var top = new THREE.Mesh(topGeom, colorMaterials[4]);
@@ -629,7 +618,7 @@
                 train.add(car1);
                 train.add(car2);
 
-                var wheelSet = makeWheels(params.width, params.height, params.depth, colorMaterials[2]);
+                wheelSet = makeWheels(params.width, params.height, params.depth, colorMaterials[2]);
                 train.add(wheelSet);
 
                 var connector = addConnector();
@@ -790,7 +779,7 @@
                 train = makeTrain();
                 train.position.y = 1;
                 train.position.x = -params.groundDimension/2;
-                // train.position.x = -30;
+                // train.position.x = 0; // for debugging
                 scene.add(train);
 
                 var sign = makeSign(.1, 5);
@@ -818,6 +807,7 @@
             // make camera views
 
             function showTrainSideView() {
+                params.insideTrain = false;
                 cameraParams = {
                     near: 1,
                     far: params.groundDimension,
@@ -836,12 +826,8 @@
                 camera = setupCamera();
             }
 
-
-            // function showTrainFrontalView() {
-            //     return null;
-            // }
-
-            function showInsideTrain() {
+            function followTrainSideView() {
+                params.insideTrain = true;
                 cameraParams = {
                     near: 1,
                     far: params.groundDimension,
@@ -849,10 +835,35 @@
                     aspectRatio: window.innerWidth/window.innerHeight,
                     atX: 0,
                     atY: 5,
-                    atZ: 0,
-                    eyeX: 0,
+                    atZ: -params.groundDimension,
+                    eyeX: train.position.x,
                     eyeY: 5,
-                    eyeZ: 40,
+                    eyeZ: 30,
+                    upX: 0,
+                    upY: 1,
+                    upZ: 0
+                };
+                camera = setupCamera();
+            }
+
+
+            // function showTrainFrontalView() {
+            //     return null;
+            // }
+
+            function showInsideTrain() {
+                params.insideTrain = true;
+                cameraParams = {
+                    near: 1,
+                    far: params.groundDimension,
+                    fov: 100,
+                    aspectRatio: window.innerWidth/window.innerHeight,
+                    atX: params.groundDimension,
+                    atY: 5,
+                    atZ: 0,
+                    eyeX: train.position.x,
+                    eyeY: 4.5,
+                    eyeZ: 0,
                     upX: 0,
                     upY: 1,
                     upZ: 0
@@ -875,29 +886,35 @@
 
             function pauseAnimation() {
                 animationState.vx = 0;
+                animationState.rz = 0;
                 params.moving = false;
             }
 
             function increaseSpeed() {
                 animationState.vx += .003;
-                // animationState.rz += .003;
+                animationState.rz += .001;
             }
 
             function decreaseSpeed() {
                 animationState.vx -= .00145;
-                // animationState.rz -= .00145;
+                animationState.rz -= .0005;
             }
 
             function oneStep() {
                 train.position.x += animationState.vx;
                 for (let i = 0; i < wheelList.length; i++) {
-                    wheelList[i].rotation.z += animationState.rz;
+                    wheelList[i].rotation.z -= animationState.rz;
                 }
 
                 if (params.moving) {
+                    if (params.insideTrain) {
+                        camera.position.x += animationState.vx;
+                    }
+
                     // restart train at left end
-                    if (train.position.x >= params.groundDimension/2) {
-                        train.position.x = -params.groundDimension/2;
+                    if (train.position.x >= params.groundDimension/2-params.width*3) {
+                        train.position.x = -params.groundDimension/2 + params.width*3;
+                        camera.position.x = -params.groundDimension/2 + params.width*3;
                         params.hasStopped = false;
                         resetAnimationState();
                     }
@@ -914,13 +931,11 @@
                         decreaseSpeed();
                     }
                 }
-
-                render();
             }
 
             function animate() {
-                oneStep();
-                renderer.render(scene, camera);
+                oneStep(); 
+                render();
                 requestAnimationFrame(animate);
             }
 
