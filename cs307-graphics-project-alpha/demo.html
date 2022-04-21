@@ -63,12 +63,12 @@
                     far: params.groundDimension,
                     fov: 100,
                     aspectRatio: window.innerWidth/window.innerHeight,
-                    atX: params.groundDimension,
-                    atY: 0,
+                    atX: 0,
+                    atY: 5,
                     atZ: 0,
                     eyeX: 0,
-                    eyeY: 10,
-                    eyeZ: 50,
+                    eyeY: 5,
+                    eyeZ: 40,
                     upX: 0,
                     upY: 1,
                     upZ: 0
@@ -91,6 +91,9 @@
             // initialize environment
 
             let scene, camera, renderer, skyboxGeo, skybox, controls, train;
+            // wheels need to be global to rotate
+            let w1, w2, w3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13, w14, w15, w16;
+            let wheelList = [];
 
             function init() {
                 scene = new THREE.Scene();
@@ -180,8 +183,7 @@
                                                         transparent: true,
                                                         opacity: .4,
                                                         roughness: 0,
-                                                        reflectivity: 5,
-                                                        shininess: 30
+                                                        reflectivity: 5
                                                         }),   
                                 new THREE.MeshPhongMaterial({color: new THREE.Color(0x730a00), // 4 red
                                                         side: THREE.DoubleSide}), 
@@ -194,6 +196,9 @@
                             });
 
                 init();
+                TW.mainInit(renderer,scene);
+                TW.setKeyboardCallback('a', showTrainSideView, "train side view", false);
+                TW.setKeyboardCallback('b', showInsideTrain, "inside train", false);
             });
 
             // ====================================================================
@@ -405,20 +410,88 @@
             }
 
             // add wheels to train car
-            function makeWheels(radius, material) {
+            function makeWheels(width, height, depth, material) {
                 var wheelSet = new THREE.Object3D();
+                var space = height/15*1.7; // space between two wheels in the same hole
+                var displacement = params.space; // displaced 
+                // use same wheel shape for every wheel
+                var wheelGeom = new THREE.TorusGeometry( height/15, height/22.5, 16, 100 );
 
-                // left wheel
-                var wheelGeom = new THREE.TorusGeometry( radius, radius/1.5, 16, 100 );
-                var wheelMesh = new THREE.Mesh(wheelGeom, material);
-                wheelMesh.position.x = -radius*1.7;
-                wheelSet.add(wheelMesh);
+                // right train
+                // 1st wheel
+                w1 = new THREE.Mesh(wheelGeom, material);
+                w1.position.set(width/3 - space, -height/12, depth/2-height/15)
+                wheelSet.add(w1);
+                // adjacent wheel
+                w2 = new THREE.Mesh(wheelGeom, material);
+                w2.position.set(width/3 + space, -height/12, depth/2-height/15)
+                wheelSet.add(w2);
 
-                // right wheel
-                var wheelMesh = new THREE.Mesh(wheelGeom, material);
-                wheelMesh.position.x = radius*1.7;
-                wheelSet.add(wheelMesh);
+                // 3rd wheel
+                w3 = new THREE.Mesh(wheelGeom, material);
+                w3.position.set(width - space, -height/12, depth/2-height/15)
+                wheelSet.add(w3);
+                // adjacent wheel
+                w4 = new THREE.Mesh(wheelGeom, material);
+                w4.position.set(width + space, -height/12, depth/2-height/15)
+                wheelSet.add(w4);
 
+                // 5th wheel
+                w5 = new THREE.Mesh(wheelGeom, material);
+                w5.position.set(width/3 - space, -height/12, -(depth/2-height/15))
+                wheelSet.add(w5);
+                // adjacent wheel
+                w6 = new THREE.Mesh(wheelGeom, material);
+                w6.position.set(width/3 + space, -height/12, -(depth/2-height/15))
+                wheelSet.add(w6);
+
+                // 7th wheel
+                w7 = new THREE.Mesh(wheelGeom, material);
+                w7.position.set(width - space, -height/12, -(depth/2-height/15))
+                wheelSet.add(w7);
+                // adjacent wheel
+                w8 = new THREE.Mesh(wheelGeom, material);
+                w8.position.set(width + space, -height/12, -(depth/2-height/15))
+                wheelSet.add(w8);
+
+                // left train
+                // 9th wheel
+                w9 = new THREE.Mesh(wheelGeom, material);
+                w9.position.set(-(width/3 - space) - displacement, -height/12, depth/2-height/15)
+                wheelSet.add(w9);
+                // adjacent wheel
+                w10 = new THREE.Mesh(wheelGeom, material);
+                w10.position.set(-(width/3 + space) - displacement, -height/12, depth/2-height/15)
+                wheelSet.add(w10);
+
+                // 11th wheel
+                w11 = new THREE.Mesh(wheelGeom, material);
+                w11.position.set(-(width - space) - displacement, -height/12, depth/2-height/15)
+                wheelSet.add(w11);
+                // adjacent wheel
+                w12 = new THREE.Mesh(wheelGeom, material);
+                w12.position.set(-(width + space) - displacement, -height/12, depth/2-height/15)
+                wheelSet.add(w12);
+
+                // 13th wheel
+                w13 = new THREE.Mesh(wheelGeom, material);
+                w13.position.set(-(width/3 - space) - displacement, -height/12, -(depth/2-height/15))
+                wheelSet.add(w13);
+                // adjacent wheel
+                w14 = new THREE.Mesh(wheelGeom, material);
+                w14.position.set(-(width/3 + space) - displacement, -height/12, -(depth/2-height/15))
+                wheelSet.add(w14);
+
+                // 15th wheel
+                w15 = new THREE.Mesh(wheelGeom, material);
+                w15.position.set(-(width - space) - displacement, -height/12, -(depth/2-height/15))
+                wheelSet.add(w15);
+                // adjacent wheel
+                w16 = new THREE.Mesh(wheelGeom, material);
+                w16.position.set(-(width + space) - displacement, -height/12, -(depth/2-height/15))
+                wheelSet.add(w16);
+
+                wheelList = [w1, w2, w3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13, w14, w15, w16];
                 return wheelSet;
             }
             
@@ -482,18 +555,18 @@
                 car.add(bottom);
 
                 // add four wheel sets
-                var wheelSet1 = makeWheels(height/15, colorMaterials[2]);
-                wheelSet1.position.set(width/3, -height/12, depth/2-height/15);
-                car.add(wheelSet1);
-                var wheelSet2 = makeWheels(height/15, colorMaterials[2]);
-                wheelSet2.position.set(width, -height/12, depth/2-height/15);
-                car.add(wheelSet2);
-                var wheelSet3 = makeWheels(height/15, colorMaterials[2]);
-                wheelSet3.position.set(width/3, -height/12, -(depth/2-height/15));
-                car.add(wheelSet3);
-                var wheelSet4 = makeWheels(height/15, colorMaterials[2]);
-                wheelSet4.position.set(width, -height/12, -(depth/2-height/15));
-                car.add(wheelSet4);
+                // var wheelSet1 = makeWheels(height/15, colorMaterials[2]);
+                // wheelSet1.position.set(width/3, -height/12, depth/2-height/15);
+                // car.add(wheelSet1);
+                // var wheelSet2 = makeWheels(height/15, colorMaterials[2]);
+                // wheelSet2.position.set(width, -height/12, depth/2-height/15);
+                // car.add(wheelSet2);
+                // var wheelSet3 = makeWheels(height/15, colorMaterials[2]);
+                // wheelSet3.position.set(width/3, -height/12, -(depth/2-height/15));
+                // car.add(wheelSet3);
+                // var wheelSet4 = makeWheels(height/15, colorMaterials[2]);
+                // wheelSet4.position.set(width, -height/12, -(depth/2-height/15));
+                // car.add(wheelSet4);
 
                 // add train top
                 var topGeom = new THREE.BoxGeometry(width*1.01, height/10, depth);
@@ -555,6 +628,9 @@
 
                 train.add(car1);
                 train.add(car2);
+
+                var wheelSet = makeWheels(params.width, params.height, params.depth, colorMaterials[2]);
+                train.add(wheelSet);
 
                 var connector = addConnector();
 
@@ -714,6 +790,7 @@
                 train = makeTrain();
                 train.position.y = 1;
                 train.position.x = -params.groundDimension/2;
+                // train.position.x = -30;
                 scene.add(train);
 
                 var sign = makeSign(.1, 5);
@@ -736,6 +813,52 @@
                 // dirLight.position.set(0, 5, 10);
                 scene.add(dirLight);
             }
+
+            // ====================================================================
+            // make camera views
+
+            function showTrainSideView() {
+                cameraParams = {
+                    near: 1,
+                    far: params.groundDimension,
+                    fov: 100,
+                    aspectRatio: window.innerWidth/window.innerHeight,
+                    atX: 0,
+                    atY: 5,
+                    atZ: 0,
+                    eyeX: 0,
+                    eyeY: 5,
+                    eyeZ: 40,
+                    upX: 0,
+                    upY: 1,
+                    upZ: 0
+                };
+                camera = setupCamera();
+            }
+
+
+            // function showTrainFrontalView() {
+            //     return null;
+            // }
+
+            function showInsideTrain() {
+                cameraParams = {
+                    near: 1,
+                    far: params.groundDimension,
+                    fov: 100,
+                    aspectRatio: window.innerWidth/window.innerHeight,
+                    atX: 0,
+                    atY: 5,
+                    atZ: 0,
+                    eyeX: 0,
+                    eyeY: 5,
+                    eyeZ: 40,
+                    upX: 0,
+                    upY: 1,
+                    upZ: 0
+                };
+                camera = setupCamera();
+            }
             
             // ====================================================================
             // animation 
@@ -744,26 +867,32 @@
 
             function resetAnimationState() {
                 animationState = {
-                    rx: 1.2
+                    vx: 1.2,
+                    rz: 1.2/(params.height/15)
                 }
             }
             resetAnimationState();
 
             function pauseAnimation() {
-                animationState.rx = 0;
+                animationState.vx = 0;
                 params.moving = false;
             }
 
             function increaseSpeed() {
-                animationState.rx += .003;
+                animationState.vx += .003;
+                // animationState.rz += .003;
             }
 
             function decreaseSpeed() {
-                animationState.rx -= .00145;
+                animationState.vx -= .00145;
+                // animationState.rz -= .00145;
             }
 
             function oneStep() {
-                train.position.x += animationState.rx;
+                train.position.x += animationState.vx;
+                for (let i = 0; i < wheelList.length; i++) {
+                    wheelList[i].rotation.z += animationState.rz;
+                }
 
                 if (params.moving) {
                     // restart train at left end
