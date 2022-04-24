@@ -633,28 +633,33 @@
                 return train;
             }
 
+            //makes one row of seats and returns seat object
             function makeSeat(width, height, depth){
 
                 var seat = new THREE.Object3D();
                 
+                //makes the bottom of the seat with brown color
                 var bottomGeom = new THREE.BoxGeometry(width, height/2, depth);
                 var bottomMesh = new THREE.Mesh(bottomGeom, colorMaterials[5]);
                 bottomMesh.position.y = height/4;
                 bottomMesh.position.z = depth/2;
                 seat.add(bottomMesh);
 
+                //makes the side of the seat with brown color
                 var sideGeom = new THREE.BoxGeometry(width, height, depth/5);
                 var sideMesh = new THREE.Mesh(sideGeom, colorMaterials[5]);
                 sideMesh.position.y = (height * 1.5)/2;
                 sideMesh.position.z = depth - depth/10;
                 seat.add(sideMesh);
 
+                //makes the bottom of the cushion with red color
                 var cushionBottomGeom = new THREE.BoxGeometry(width, height/5, depth);
                 var cushionBottomMesh = new THREE.Mesh(cushionBottomGeom, colorMaterials[4]);
                 cushionBottomMesh.position.y = height/2 + height/10;
                 cushionBottomMesh.position.z = depth/2 -depth/5;
                 seat.add(cushionBottomMesh);
 
+                //makes the side of the cushion with the red color
                 var cushionSideGeom = new THREE.BoxGeometry(width, height/1.5, depth/5);
                 var cushionSideMesh = new THREE.Mesh(cushionSideGeom, colorMaterials[4]);
                 cushionSideMesh.position.y = height/2 + (height/1.5)/2;
@@ -664,6 +669,7 @@
                 return seat;
             }
 
+            //creates two rows of seats for the two sides of one train car and return seatRows object
             function makeSeatRows(width, height, depth, space){
                 var seatRows = new THREE.Object3D();
 
@@ -700,6 +706,7 @@
 
             }
 
+            //creates floor with plane geometry and returns floor object
             function makeFloor(width, height){
                 
                 var floor = new THREE.Object3D();
@@ -714,6 +721,7 @@
                 return floor;
             }
 
+            //creates spotlight at the top of the train and returns spotlight object 
             function makeSpotlight(radius, width, height, depth, coneMaterial, boxMaterial, side){
 
                 var spotlight = new THREE.Object3D();
@@ -743,6 +751,7 @@
                 return spotlight;
             }
 
+            //creates the circular cylinder decoration at the top of the train and returns cylinder object 
             function makeTrainTopCylinder(radius, height, material){
 
                 var cylinder = new THREE.Object3D();
@@ -755,6 +764,7 @@
                 return cylinder;
             }
 
+            //creates the longer cylinder decoration at the top of the train and returns cylinder object 
             function makeTrainTopCylinderLong(width, radius, height, material){
 
                 var cylinderLong = new THREE.Object3D();
@@ -784,6 +794,7 @@
                 // var cylinderGeom = 
             }
 
+            //creates pieces to connect the two train cars and return connector object
             function addConnector(){
 
                 var connector = new THREE.Object3D();
