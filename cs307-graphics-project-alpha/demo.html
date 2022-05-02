@@ -1,8 +1,8 @@
 <!doctype html>
 
-<!--HWK6 - Creative Scene for CS307
+<!--Final Project - Version 1 - Creative Scene for CS307
     Author: Yihui Liao and Ivy Ho
-    Date: 04/10/2022
+    Date: 05/01/2022
 
 -->
 
@@ -23,9 +23,9 @@
         <script src="https://cs.wellesley.edu/~cs307/threejs/libs/OrbitControls-r95.js">
         "https://cs.wellesley.edu/~cs307/threejs/libs/OrbitControls-r80.js"
         </script>
-        <!-- <script src="https://cs.wellesley.edu/~cs307/threejs/libs/dat.gui-r95.js">
+        <script src="https://cs.wellesley.edu/~cs307/threejs/libs/dat.gui-r95.js">
         "https://cs.wellesley.edu/~cs307/threejs/libs/dat.gui-r80.min.js"
-        </script> -->
+        </script>
         <script src="https://cs.wellesley.edu/~cs307/threejs/libs/tw-sp21.js">
         "https://cs.wellesley.edu/~cs307/threejs/libs/tw-fa18.js"
         </script>
@@ -63,6 +63,7 @@
                 headlightsOn: false,
             };
 
+            //camera parameters
             var cameraParams = {
                     near: 1,
                     far: params.groundDimension,
@@ -95,11 +96,12 @@
             // ====================================================================
             // initialize environment
 
+            //global variables
             let scene, camera, renderer, skyboxGeo, skybox, controls, train;
-            // wheels need to be global to rotate
-            let wheelList, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13, w14, w15, w16;
+            let wheelList, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13, w14, w15, w16; // wheels need to be global to rotate
             let doorSetRight, doorSetLeft;
 
+            // initialize the scene with a renderer and orbit controls
             function init() {
                 scene = new THREE.Scene();
                 camera = setupCamera();
@@ -139,6 +141,7 @@
                 animate();
             };
             
+            // makes scene responsive to window resizing
             function onWindowResize() {
                 camera.aspect = window.innerWidth / window.innerHeight;
                 camera.updateProjectionMatrix();
@@ -159,8 +162,8 @@
             function (textures) {
                 adjustTexture(textures[0], 250, 6, false, 0); // rock
                 adjustTexture(textures[1], 20, 5, false, 0); // concrete
-                adjustTexture(textures[2], 1, 1, false), 0; // wood for tracks
-                adjustTexture(textures[3], 3, 1, true), 0; // metal for tracks
+                adjustTexture(textures[2], 1, 5, false, 0); // wood for tracks
+                adjustTexture(textures[3], 3, 1, true, 0); // metal for tracks
                 adjustTexture(textures[4], 60, 60, false, 0); // water
                 adjustTexture(textures[5], 10, 1, false, 0); // red planking
                 adjustTexture(textures[6], 1, 2, true, 0); // red velvet
@@ -226,22 +229,26 @@
                                 new THREE.MeshPhysicalMaterial({color: new THREE.Color(0xffffff),  // 8 metallic black
                                                         metalness: 1}),  
                                 ];
-
+                
+                // load in sky materials for skybox
                 skyMaterials = textures.slice(10,16).map(texture => {
                                 return new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide });
                             });
 
                 init();
                 TW.mainInit(renderer,scene);
+
+                //keyboard controls
                 TW.setKeyboardCallback('a', showTrainSideView, "train side view", false);
                 TW.setKeyboardCallback('s', followTrainSideView, "follow train side view", false);
                 TW.setKeyboardCallback('d', showInsideTrain, "inside train", false);
-                // TW.setKeyboardCallback('f', showHeadlights, "turn on headlights", false);
             });
 
             // ====================================================================
             // functions to create scene objects
 
+            //takes in a texture, number of times repeated horizonally, number of times repeated vertically, whether it is mirrored, and its rotation
+            //and updates the textures attributes according to these parameters
             function adjustTexture(texture, repeatH, repeatV, mirror, rotation) {
                 texture.repeat.set(repeatH,repeatV);
                 texture.needsUpdate = true;
@@ -255,6 +262,7 @@
                 }
             }
 
+            //creates a ground object that is composed of the sea, rock path, and train tracks
             function makeGround() {
                 var ground = new THREE.Object3D();
 
@@ -292,6 +300,7 @@
                 return ground;
             }
 
+            //creates and returns the track object 
             function makeTracks(){
                 var track = new THREE.Object3D();
                 
@@ -300,9 +309,11 @@
 				var width = params.plankWidth;
 				var railZ = params.railZ;
 
+                //creates a wooden plank
 				var plankGeom = new THREE.BoxGeometry(width,height,depth);
 				var plankMesh = new THREE.Mesh(plankGeom, materials[3]);
 
+                //creates two rails on the two sides of the plank
 				var rail1 = makeRail();
 				var rail2 = makeRail();
 
@@ -316,6 +327,7 @@
 				return track;
             }
 
+            //creates the rail for the train tracks and returns the rail mesh
             function makeRail(){
 				var width = params.railWidth;
 				var height = params.plankHeight;
@@ -329,7 +341,8 @@
 
 				return railMesh;
 			}
-
+            
+            // makes the bottom half of the train
             function makeTrainCarGeomLowerBevel(width, height, depth, offsetX, offsetY, offsetZ) {
 
                 // main length of box car and beveled head
@@ -352,6 +365,7 @@
                 return bsp_boxGeom.union(bsp_triPrismGeom.subtract(bsp_cubeCutter));
             }
 
+            // makes the upper half of the train
             function makeTrainCarGeomUpperBevel(width, height, depth, offsetX, offsetY, offsetZ) {
                 
                 // main length of box car and beveled head
@@ -374,6 +388,7 @@
                 return bsp_boxGeom.union(bsp_prismGeom);
             }
 
+            //cuts out door holes in the doors using ThreeBSP
             function addDoorHoles(bspGeom, width, height, offsetX, offsetY) {
                 var doorGeom = new THREE.BoxGeometry(height/3.2, height, height*1.5);
                 doorGeom.translate( 1.132 - offsetX, height/2.5 + offsetY, 0 );
@@ -388,6 +403,7 @@
                 return bspGeom;
             }
 
+            //creates and returns a door object taking in the material, width, and height of the door
             function makeDoor(material, width, height) {
                 var door = new THREE.Object3D();
 
@@ -427,6 +443,7 @@
                 return door;
             }
 
+            //creates and returns a set of four doors using a specified material, wdith, height, and depth of the door
             function addDoors(material, width, height, depth) {
                 var doorSet = new THREE.Object3D();
 
@@ -522,9 +539,7 @@
                 return bspGeom;
             }
 
-            // takes a geometry and material and returns the mesh
-            // method of producing the mesh varies depending on whether the geometry is 
-            // a regular THREE geometry or a ThreeBSP geometry (has been hollowed out)
+            // takes a ThreeBSP geometry and material and returns the mesh
             function makeMesh(bsp_geom, material) {
                 var mesh = bsp_geom.toMesh();
                 mesh.material = material;
@@ -639,6 +654,7 @@
                 return wheelSet;
             }
 
+            // make interior of car brown
             function makeInterior(width, height, depth, material){
                 
                 // make train car body with holes for windows
@@ -646,6 +662,7 @@
                 var carGeomUpper = makeTrainCarGeomUpperBevel(width-0.2, height, depth, 0, 0, 0);
                 var carGeom = carGeomLower.union(carGeomUpper);
 
+                //cuts out the interior of the train
                 carGeom = addWindowHoles(carGeom, width, height);
                 carGeom = addDoorHoles(carGeom, width, height, .01, 0);
                 var carInsideGeom = makeTrainCarGeomLowerBevel(width-0.4, height, depth-0.15, 0.15, 0, 0).union(makeTrainCarGeomUpperBevel(width-0.4, height, depth-0.15, 0.15, 0, 0));
@@ -656,6 +673,7 @@
                 return carMesh;
             }
 
+            //creates and returns the top of the train which is composed of different objects to decorate it
             function makeTrainTop(width, height, depth, material) {
                 var top = new THREE.Object3D();
 
@@ -703,6 +721,7 @@
                 return geometry;
             }
 
+            //creates a train car and returns the train car object
             function makeTrainCar(width, height, depth, material) {
                 var car = new THREE.Object3D();
                 
@@ -728,19 +747,26 @@
                 planking.position.x = -0.1;
                 car.add(planking);
 
-                // fix front
+                // fix planking
                 var A = new THREE.Vector2( -0.03, 0 );
                 var B = new THREE.Vector2( -0.03, height/2 );
                 var C = new THREE.Vector2( width/14, height/2 );
                 var D = new THREE.Vector2( width/12, 0 );
-                var prismGeom = new PrismGeometry( [ A, B, C, D ], depth*1.035 );
-                var frontMesh = new THREE.Mesh(prismGeom, materials[8]);
-                frontMesh.position.set(width+0.15, 0, -depth*0.5175);
-                car.add(frontMesh);
-                var prismGeom = new PrismGeometry( [ A, B, C, D ], depth*1.034 );
-                var frontMesh = new THREE.Mesh(prismGeom, materials[9]);
-                frontMesh.position.set(width+0.16, 0, -depth*0.517);
-                car.add(frontMesh);
+                var prismGeom3 = new PrismGeometry( [ A, B, C, D ], depth*1.035 );
+                prismGeom3.translate(width+0.15, 0, -depth*0.5175);
+                var frontInsideGeom = new ThreeBSP(prismGeom3);
+                // fix side
+                var prismGeom1 = new PrismGeometry( [ A, B, C, D ], depth*1.035 );
+                prismGeom1.translate(width+0.15, 0, -depth*0.5175);
+                var bsp_prismGeom1 = new ThreeBSP(prismGeom1);
+                var front1 = bsp_prismGeom1.subtract(frontInsideGeom);
+                car.add(makeMesh(front1, materials[8]));
+                // fix front
+                var prismGeom2 = new PrismGeometry( [ A, B, C, D ], depth*1.034 );
+                prismGeom2.translate(width+0.16, 0, -depth*0.517);
+                var bsp_prismGeom2 = new ThreeBSP(prismGeom2);
+                var front2 = bsp_prismGeom2.subtract(frontInsideGeom);
+                car.add(makeMesh(front2, materials[9]));
 
                 // add train bottom
                 var bottomGeom = new THREE.BoxGeometry(width*1.1, height/10, depth);
@@ -809,6 +835,7 @@
                 return car;
             }
 
+            //creates and adds two train cars to the train and returns the train object
             function makeTrain(){
                 var train = new THREE.Object3D();
 
@@ -855,6 +882,7 @@
                 sign.add(boxMesh1);
                 sign.add(boxMesh2);
 
+                // get Chinese font
                 var loader = new THREE.FontLoader();
                 loader.load('./materials/Ma Shan Zheng_Regular.json',
                 function (font) {
@@ -931,7 +959,7 @@
                 return decor;
             }
 
-            //makes one row of seats and returns seat object
+            // makes one row of seats and returns seat object
             function makeSeat(width, height, depth){
 
                 var seat = new THREE.Object3D();
@@ -967,7 +995,7 @@
                 return seat;
             }
 
-            //creates two rows of seats for the two sides of one train car and return seatRows object
+            // creates two rows of seats for the two sides of one train car and return seatRows object
             function makeSeatRows(width, height, depth, space){
                 var seatRows = new THREE.Object3D();
 
@@ -985,6 +1013,8 @@
 
             }
 
+            //creates the stop sign on the platform taking the radius and height as parameters
+            //returns the sign object
             function makeSign(radius, height){
                 var sign = new THREE.Object3D();
 
@@ -1037,12 +1067,6 @@
                 sphereMesh.position.y = radius;
                 sphereMesh.position.x = -radius/2;
                 spotlight.add(sphereMesh);
-
-                // var sphereGeom = new THREE.SphereGeometry(radius*1.2, 32, 16 );
-                // var sphereMesh = new THREE.Mesh(sphereGeom, cylMaterial);
-                // sphereMesh.position.y = radius;
-                // sphereMesh.position.x = radius/2;
-                // spotlight.add(sphereMesh);
 
                 // make light bulb
                 var sphereGeom = new THREE.SphereGeometry(radius, 32, 16 );
@@ -1161,13 +1185,10 @@
                 scene.add(dirLight);
             }
 
-            // function showHeadlights() {
-            //     light.visible = !params.headlightsOn;
-            // }
-
             // ====================================================================
             // make camera views
 
+            //updates the camera parameters to show the train from the side
             function showTrainSideView() {
                 params.insideTrain = false;
                 cameraParams = {
@@ -1188,6 +1209,7 @@
                 camera = setupCamera();
             }
 
+            //updates the camera parameters to follow the train as it moves from the side
             function followTrainSideView() {
                 params.insideTrain = true;
                 cameraParams = {
@@ -1208,11 +1230,7 @@
                 camera = setupCamera();
             }
 
-
-            // function showTrainFrontalView() {
-            //     return null;
-            // }
-
+            //updates the camera parameters to show the train from the inside
             function showInsideTrain() {
                 params.insideTrain = true;
                 cameraParams = {
@@ -1236,12 +1254,14 @@
             // ====================================================================
             // animation 
 
+            // state variables of the animation
             var animationState;
 
+            // sets the animationState to its initial setting
             function resetAnimationState() {
                 animationState = {
-                    vx: 1.2,
-                    rz: 1.2/(params.height/15),
+                    vx: 1.2, //velocity of the train
+                    rz: 1.2/(params.height/15), //sets the rotation angle for the wheels
                     dx: 0.018
                 }
             }
@@ -1273,22 +1293,27 @@
                 }
             }
 
+            //updates one stop of the animation
             function oneStep() {
                 train.position.x += animationState.vx;
                 for (let i = 0; i < wheelList.length; i++) {
                     wheelList[i].rotation.z -= animationState.rz;
                 }
 
+                //if the train is moving
                 if (params.moving) {
+                    //update the camera position if the view is inside the train
                     if (params.insideTrain) {
                         camera.position.x += animationState.vx;
                     }
 
-                    // restart train at left end
+                    // restart train at left end once the train reaches the end of the box
                     if (train.position.x >= params.groundDimension/2-params.width*3) {
                         train.position.x = -params.groundDimension/2 + params.width*3;
                         params.hasStopped = false;
                         resetAnimationState();
+                        doorSetRight.position.x = params.space;
+                        doorSetLeft.position.x = -params.space;
                         if (params.insideTrain) {
                             camera.position.x = -params.groundDimension/2 + params.width*3;
                         }
