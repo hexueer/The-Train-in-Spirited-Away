@@ -115,27 +115,35 @@
                 controls.enabled = true;
                 controls.maxDistance = params.groundDimension;
 
-                skyboxGeo = new THREE.BoxGeometry(params.groundDimension, params.groundDimension, params.groundDimension);
-                skybox = new THREE.Mesh(skyboxGeo, skyMaterials);
-                scene.add(skybox);
+                // skyboxGeo = new THREE.BoxGeometry(params.groundDimension, params.groundDimension, params.groundDimension);
+                // skybox = new THREE.Mesh(skyboxGeo, skyMaterials);
+                // scene.add(skybox);
+
+                var skySphereGeo = new THREE.SphereGeometry( 500, 60, 40, 0, Math.PI*2, 0, Math.PI/2 );
+				skySphereGeo.scale( - 1, 1, 1 );
+				var skyMat = new THREE.MeshBasicMaterial({map: new THREE.TextureLoader().load('./materials/sunset.png')});
+                var skyMesh = new THREE.Mesh(skySphereGeo, skyMat);
+                skyMesh.rotation.y = TW.degrees2radians(7);
+                scene.add(skyMesh);
+
 
                 window.addEventListener('resize', onWindowResize, false);
                 
-                // from threeJS audio listener documentation
-                const listener = new THREE.AudioListener();
-                camera.add( listener );
+                // // from threeJS audio listener documentation
+                // const listener = new THREE.AudioListener();
+                // camera.add( listener );
 
-                // create a global audio source
-                const sound = new THREE.Audio( listener );
+                // // create a global audio source
+                // const sound = new THREE.Audio( listener );
 
-                // load a sound and set it as the Audio object's buffer
-                const audioLoader = new THREE.AudioLoader();
-                audioLoader.load( 'one_summer_day.ogg', function( buffer ) {
-                    sound.setBuffer( buffer );
-                    sound.setLoop( true );
-                    sound.setVolume( 0.5 );
-                    sound.play();
-                });
+                // // load a sound and set it as the Audio object's buffer
+                // const audioLoader = new THREE.AudioLoader();
+                // audioLoader.load( 'one_summer_day.ogg', function( buffer ) {
+                //     sound.setBuffer( buffer );
+                //     sound.setLoop( true );
+                //     sound.setVolume( 0.5 );
+                //     sound.play();
+                // });
 
                 remakeScene();
                 animate();
@@ -155,22 +163,21 @@
             var materials;  
             var colorMaterials; 
             var skyMaterials;          
-            TW.loadTextures(["materials/rock.jpg", "materials/concrete.jpg", "materials/wood.jpg", "materials/metal.jpg", 
-                            "materials/water.jpeg", "materials/plank.jpg", "materials/velvet.jpg", "materials/floor.jpg", "materials/plank.jpg", "materials/plank.jpg",
+            TW.loadTextures(["materials/rock.jpg", "materials/concrete.jpg", "materials/wood.jpg", "materials/metal.jpg", "materials/water.jpeg", 
+                            "materials/plank.jpg", "materials/velvet.jpg", "materials/floor.jpg", "materials/plank.jpg", "materials/plank.jpg", 
                             "materials/right.png", "materials/left.png", "materials/top.png", "materials/bottom.png", "materials/front.png", "materials/back.png"],
                             
             function (textures) {
                 adjustTexture(textures[0], 250, 6, false, 0); // rock
-                adjustTexture(textures[1], 20, 5, false, 0); // concrete
-                adjustTexture(textures[2], 1, 5, false, 0); // wood for tracks
+                adjustTexture(textures[1], 10, 2, false, 0); // concrete
+                adjustTexture(textures[2], 2, 1, true, Math.PI/2); // wood for tracks
                 adjustTexture(textures[3], 3, 1, true, 0); // metal for tracks
                 adjustTexture(textures[4], 60, 60, false, 0); // water
                 adjustTexture(textures[5], 10, 1, false, 0); // red planking
                 adjustTexture(textures[6], 1, 2, true, 0); // red velvet
-                adjustTexture(textures[7], 1, 1, false, 0); // flooring
+                adjustTexture(textures[7], 5, 2.5, false, 0); // flooring
                 adjustTexture(textures[8], 0.5, 0.3, false, Math.PI); // red planking rotated
                 adjustTexture(textures[9], 0.5, 0.3, false, Math.PI/2); // red planking rotated
-
 
                 materials = [new THREE.MeshPhongMaterial({color: 0xffffff,  // 0 rock
                                                         map: textures[0]}),
@@ -197,6 +204,12 @@
                                                         shininess: 0}),
                             new THREE.MeshPhongMaterial({color: 0xffffff,   // 9 red plank
                                                         map: textures[9],
+                                                        shininess: 0}),
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 10 interior wood
+                                                        map: textures[10],
+                                                        shininess: 0}),
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 11 interior wood
+                                                        map: textures[11],
                                                         shininess: 0}),
                             ];
 
@@ -752,8 +765,8 @@
                 var B = new THREE.Vector2( -0.03, height/2 );
                 var C = new THREE.Vector2( width/14, height/2 );
                 var D = new THREE.Vector2( width/12, 0 );
-                var prismGeom3 = new PrismGeometry( [ A, B, C, D ], depth*1.035 );
-                prismGeom3.translate(width+0.15, 0, -depth*0.5175);
+                var prismGeom3 = new PrismGeometry( [ A, B, C, D ], depth*1.034 );
+                prismGeom3.translate(width+0.15, 0, -depth*0.517);
                 var frontInsideGeom = new ThreeBSP(prismGeom3);
                 // fix side
                 var prismGeom1 = new PrismGeometry( [ A, B, C, D ], depth*1.035 );
@@ -1138,12 +1151,9 @@
             function makePlatform() {
                 // make plane size relative to ground size
                 var dimension = params.groundDimension;
-                var platHeight = 1.5;
+                var platHeight = 1;
 
-                var platGeom = new THREE.CylinderGeometry( dimension/130, dimension/100, platHeight, 4, 1 );
-                platGeom.rotateY( Math.PI / 4 );
-                platGeom.scale( 6, 1, 1 );
-                // var platGeom = new THREE.BoxGeometry(dimension/50, platHeight, dimension/200);
+                var platGeom = new THREE.BoxGeometry(dimension/15, platHeight, dimension/150);
                 var platMesh = new THREE.Mesh(platGeom, materials[1])
                 platMesh.position.set(-10, platHeight*0.5, -params.plankDepth*2); // add a little extra on y so it doesn't glitch
 
@@ -1162,7 +1172,8 @@
 
                 train = makeTrain();
                 train.position.y = 1.3;
-                train.position.x = -params.groundDimension/2;
+                // train.position.x = -params.groundDimension/2;
+                train.position.x = 0;
                 scene.add(train);
 
                 var sign = makeSign(.1, 5);
@@ -1180,8 +1191,8 @@
                 scene.add(ambLight);
                 
                 // directional light coming from slightly right, front, and up direction
-                var dirLight = new THREE.DirectionalLight( TW.WHITE, 0.7 );
-                dirLight.position.set( 0.7, 0.9, 1 );
+                var dirLight = new THREE.DirectionalLight( new THREE.Color(0xffef8c), 0.5 );
+                dirLight.position.set( -params.groundDimension, 100, params.groundDimension );
                 scene.add(dirLight);
             }
 
@@ -1338,7 +1349,7 @@
             }
 
             function animate() {
-                oneStep(); 
+                // oneStep(); 
                 render();
                 requestAnimationFrame(animate);
             }
