@@ -1,0 +1,1407 @@
+<!doctype html>
+
+<!--Final Project - Version 1 - Creative Scene for CS307
+    Author: Yihui Liao and Ivy Ho
+    Date: 05/01/2022
+
+-->
+
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Creative Scene</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+            }
+        </style>
+
+        <script src="https://cs.wellesley.edu/~cs307/threejs/libs/three-r95.all.js">
+        "https://cs.wellesley.edu/~cs307/threejs/libs/three-r80.min.js"
+        </script>
+        <script src="https://cs.wellesley.edu/~cs307/threejs/libs/OrbitControls-r95.js">
+        "https://cs.wellesley.edu/~cs307/threejs/libs/OrbitControls-r80.js"
+        </script>
+        <script src="https://cs.wellesley.edu/~cs307/threejs/libs/dat.gui-r95.js">
+        "https://cs.wellesley.edu/~cs307/threejs/libs/dat.gui-r80.min.js"
+        </script>
+        <script src="https://cs.wellesley.edu/~cs307/threejs/libs/tw-sp21.js">
+        "https://cs.wellesley.edu/~cs307/threejs/libs/tw-fa18.js"
+        </script>
+        <script src="./water.js"></script> 
+        <!-- Refer to https://sbcode.net/threejs/csg/ to understand the logic of ThreeBSP -->
+        <script src="./threecsg.js"></script> <!-- code from https://github.com/Wilt/ThreeCSG @Wilt, forked from chandlerprall -->
+    </head>
+    <body>
+        <script>
+            // ====================================================================
+            // set parameters for scene objects
+
+            // object sizes
+            var params = {
+                groundDimension: 1000,
+                plankHeight: .25,
+				plankDepth: 5,
+				plankWidth: 1,
+				railZ: 1.5,
+				railWidth: .25,
+				railDepth: 3,
+                
+                // train car
+                width: 20, // x
+                height: 5, // y
+                depth: 6, // z
+                space: .5,
+                
+                wait: 8000, // wait time at stop in milliseconds
+                hasStopped: false, // if stopped yet in the current cycle
+                moving: true, // keeps track of whether train is in motion
+                insideTrain: false, // camera view should be inside train now
+                doorOpened: false, // keeps track of if the doors have opened in this cycle
+                doorClosing: false, // keeps track of if the doors are currently closing
+
+                headlightsOn: false,
+            };
+
+            //camera parameters
+            var cameraParams = {
+                    near: 1,
+                    far: params.groundDimension*2,
+                    fov: 100,
+                    aspectRatio: window.innerWidth/window.innerHeight,
+                    atX: 0,
+                    atY: 5,
+                    atZ: 0,
+                    eyeX: 0,
+                    eyeY: 5,
+                    eyeZ: 40,
+                    upX: 0,
+                    upY: 1,
+                    upZ: 0
+                  };
+
+            // setupCamera() function creates and returns a camera with the desired parameters
+            function setupCamera() {
+                // set up an abbreviation 
+                var cp = cameraParams;
+                // create an initial camera with the desired shape
+                var camera = new THREE.PerspectiveCamera(cp.fov, cp.aspectRatio, cp.near, cp.far);
+                // set the camera location and orientation
+                camera.position.set(cp.eyeX, cp.eyeY, cp.eyeZ);
+                camera.up.set(cp.upX, cp.upY, cp.upZ);
+                camera.lookAt(new THREE.Vector3(cp.atX, cp.atY, cp.atZ));
+                return camera;
+            }
+
+            // ====================================================================
+            // initialize environment
+
+            //global variables
+            let scene, camera, renderer, ambLight, dirLight, controls, train, water;
+            let wheelList, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13, w14, w15, w16; // wheels need to be global to rotate
+            let doorSetRight, doorSetLeft;
+
+            // initialize the scene with a renderer and orbit controls
+            function init() {
+                scene = new THREE.Scene();
+                camera = setupCamera();
+
+                renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.domElement.id = "canvas";
+                document.body.appendChild(renderer.domElement);
+
+                // orbit controls for debugging
+                controls = new THREE.OrbitControls(camera, renderer.domElement);
+                controls.enabled = true;
+                controls.maxDistance = params.groundDimension;
+
+                // make sky
+                var skySphereGeo = new THREE.SphereGeometry( params.groundDimension/2, 60, 40, 0, Math.PI*2, 0, Math.PI/2 );
+				skySphereGeo.scale( - 1, 1, 1 );
+                var skyMesh = new THREE.Mesh(skySphereGeo, skyMat);
+                skyMesh.rotation.y = TW.degrees2radians(7);
+                scene.add(skyMesh);
+
+                window.addEventListener('resize', onWindowResize, false);
+                
+                // from threeJS audio listener documentation
+                const listener = new THREE.AudioListener();
+                camera.add( listener );
+
+                // create a global audio source
+                const sound = new THREE.Audio( listener );
+
+                // load a sound and set it as the Audio object's buffer
+                const audioLoader = new THREE.AudioLoader();
+                audioLoader.load( 'one_summer_day.ogg', function( buffer ) {
+                    sound.setBuffer( buffer );
+                    sound.setLoop( true );
+                    sound.setVolume( 0.5 );
+                    sound.play();
+                });
+
+                remakeScene();
+                animate();
+            };
+            
+            // makes scene responsive to window resizing
+            function onWindowResize() {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            };
+
+            // ====================================================================
+            // load textures and make scene
+
+            // prepare materials
+            var materials;  
+            var colorMaterials; 
+            var skyMat;   
+            var waterNormal;       
+            TW.loadTextures(["materials/rock.jpg", "materials/concrete.jpg", "materials/wood.jpg", "materials/metal.jpg", "materials/waterNormal.jpeg", 
+                            "materials/plank.jpg", "materials/velvet.jpg", "materials/floor.jpg", "materials/plank.jpg", "materials/plank.jpg", 
+                            "materials/sunset.png"],
+                            
+            function (textures) {
+                adjustTexture(textures[0], 250, 6, false, 0); // rock
+                adjustTexture(textures[1], 10, 2, false, 0); // concrete
+                adjustTexture(textures[2], 2, 1, true, Math.PI/2); // wood for tracks
+                adjustTexture(textures[3], 3, 1, true, 0); // metal for tracks
+                adjustTexture(textures[5], 10, 1, false, 0); // red planking
+                adjustTexture(textures[6], 1, 2, true, 0); // red velvet
+                adjustTexture(textures[7], 5, 2.5, false, 0); // flooring
+                adjustTexture(textures[8], 0.5, 0.3, false, Math.PI); // red planking rotated
+                adjustTexture(textures[9], 0.5, 0.3, false, Math.PI/2); // red planking rotated
+                
+
+                materials = [new THREE.MeshPhongMaterial({color: 0xffffff,  // 0 rock
+                                                        map: textures[0]}),
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 1 concrete
+                                                        map: textures[1]}),
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 2 water
+                                                        map: textures[4]}), 
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 3 wood
+                                                        map: textures[2]}),
+                            new THREE.MeshPhysicalMaterial({color: 0xffffff,   // 4 metal
+                                                        map: textures[3],
+                                                        metalness: 0.1}),   
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 5 red plank
+                                                        map: textures[5],
+                                                        shininess: 0}),
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 6 red velvet
+                                                        map: textures[6]}),   
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 7 floor
+                                                        map: textures[7],
+                                                        side: THREE.DoubleSide}),   
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 8 red plank
+                                                        map: textures[8],
+                                                        shininess: 0}),
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 9 red plank
+                                                        map: textures[9],
+                                                        shininess: 0}),
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 10 interior wood
+                                                        map: textures[10],
+                                                        shininess: 0}),
+                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 11 interior wood
+                                                        map: textures[11],
+                                                        shininess: 0}),
+                            ];
+
+                colorMaterials = [new THREE.MeshPhongMaterial({color: new THREE.Color(0xfcce8e), // 0 beige
+                                                        specular: new THREE.Color("dimgray"),
+                                                        shininess: 0,
+                                                        side: THREE.DoubleSide}),
+                                new THREE.MeshPhongMaterial({color: new THREE.Color(0xffef8c), // 1 yellowish white
+                                                        emissive: 0xffef8c,}), 
+                                new THREE.MeshPhongMaterial({color: new THREE.Color(0x000000), // 2 matte black
+                                                        specular: new THREE.Color("dimgray"),
+                                                        shininess: 5,
+                                                        side: THREE.DoubleSide}),
+                                new THREE.MeshPhysicalMaterial({color: new THREE.Color(0xffffff), // 3 glass
+                                                        side: THREE.DoubleSide,
+                                                        transparent: true,
+                                                        opacity: .4,
+                                                        reflectivity: 0.5,
+                                                        premultipliedAlpha: true
+                                                        }), 
+                                new THREE.MeshPhysicalMaterial({color: new THREE.Color(0xff1600),  // 8 metallic red
+                                                        metalness: 0.5,
+                                                        side: THREE.DoubleSide}), 
+                                new THREE.MeshPhongMaterial({color: new THREE.Color(0x2e201c), // 5 brown
+                                                        side: THREE.DoubleSide}),
+                                new THREE.MeshPhysicalMaterial({color: new THREE.Color(0xffffff),   // 6 silver
+                                                        metalness: 0.3}),  
+                                new THREE.MeshPhongMaterial({color: new THREE.Color(0xbf3021), // 7 red
+                                                        shininess: 30,}), 
+                                new THREE.MeshPhysicalMaterial({color: new THREE.Color(0xffffff),  // 8 metallic black
+                                                        metalness: 1}),  
+                                ];
+
+                skyMat = new THREE.MeshLambertMaterial({map: textures[10]});
+                textures[4].wrapS = textures[4].wrapT = THREE.RepeatWrapping; 
+                waterNormal = textures[4];
+
+                init();
+                TW.mainInit(renderer,scene);
+
+                //keyboard controls
+                TW.setKeyboardCallback('a', showTrainSideView, "train side view", false);
+                TW.setKeyboardCallback('s', followTrainSideView, "follow train side view", false);
+                TW.setKeyboardCallback('d', showPlatformView, "at platform", false);
+                TW.setKeyboardCallback('f', showInsideTrain, "inside train", false);
+            });
+
+            // ====================================================================
+            // functions to create scene objects
+
+            //takes in a texture, number of times repeated horizonally, number of times repeated vertically, whether it is mirrored, and its rotation
+            //and updates the textures attributes according to these parameters
+            function adjustTexture(texture, repeatH, repeatV, mirror, rotation) {
+                texture.repeat.set(repeatH,repeatV);
+                texture.needsUpdate = true;
+                texture.rotation = rotation;
+                if (mirror) {
+                    texture.wrapS = THREE.MirroredRepeatWrapping;
+                    texture.wrapT = THREE.MirroredRepeatWrapping;
+                } else {
+                    texture.wrapS = THREE.RepeatWrapping;
+                    texture.wrapT = THREE.RepeatWrapping;
+                }
+            }
+
+            //creates a ground object that is composed of the sea, rock path, and train tracks
+            function makeGround() {
+                var ground = new THREE.Object3D();
+
+                // rock path
+                var path = new THREE.PlaneGeometry(params.groundDimension, params.groundDimension/100);
+
+                var pathMesh = new THREE.Mesh(path, materials[0]);
+                pathMesh.position.y = 0.01;
+                pathMesh.rotation.x = Math.PI/2;
+                pathMesh.material.side = THREE.DoubleSide;
+
+                ground.add(pathMesh);
+
+                // train tracks
+                var positionX = -params.groundDimension/2;
+                for (let i = 0; i <= params.groundDimension; i++ ){
+                    var track = makeTracks();
+                    track.position.x = positionX + params.railDepth/2;
+                    positionX += params.railDepth/2;
+                    ground.add(track);
+                }
+                
+                return ground;
+            }
+
+            //creates and returns the track object 
+            function makeTracks(){
+                var track = new THREE.Object3D();
+                
+				var height = params.plankHeight;
+				var depth = params.plankDepth;
+				var width = params.plankWidth;
+				var railZ = params.railZ;
+
+                //creates a wooden plank
+				var plankGeom = new THREE.BoxGeometry(width,height,depth);
+				var plankMesh = new THREE.Mesh(plankGeom, materials[3]);
+
+                //creates two rails on the two sides of the plank
+				var rail1 = makeRail();
+				var rail2 = makeRail();
+
+				rail1.position.z = railZ;
+				rail2.position.z = -railZ;
+
+				track.add(plankMesh)
+				track.add(rail1);
+				track.add(rail2);
+
+				return track;
+            }
+
+            //creates the rail for the train tracks and returns the rail mesh
+            function makeRail(){
+				var width = params.railWidth;
+				var height = params.plankHeight;
+				var depth = params.railDepth;
+
+				var railGeom = new THREE.BoxGeometry(width, height, depth);
+				var railMesh = new THREE.Mesh(railGeom, materials[4]);
+
+				railMesh.position.y = height;
+				railMesh.rotation.y = Math.PI/2;
+
+				return railMesh;
+			}
+            
+            // makes the bottom half of the train
+            function makeTrainCarGeomLowerBevel(width, height, depth, offsetX, offsetY, offsetZ) {
+
+                // main length of box car and beveled head
+                var boxGeom = new THREE.BoxGeometry(width, height/2, depth);
+                var triPrismGeom = new THREE.CylinderGeometry(height/2, height/2, depth, 3);
+                var cubeCutter = new THREE.BoxGeometry(height, height*5, depth);
+
+                // align them 
+                boxGeom.translate(width/2 + offsetX, height/4 + offsetY, offsetZ);
+                triPrismGeom.translate(width*0.975 + offsetX, offsetY, height/4 + offsetZ);
+                triPrismGeom.rotateX(-Math.PI/2);
+                triPrismGeom.scale(1,6,1);
+                cubeCutter.translate(width + offsetX, height*3 + offsetY, + offsetZ);
+
+                // use ThreeBSP to union geometries
+                var bsp_boxGeom = new ThreeBSP(boxGeom);
+                var bsp_triPrismGeom = new ThreeBSP(triPrismGeom);
+                var bsp_cubeCutter = new ThreeBSP(cubeCutter);
+
+                return bsp_boxGeom.union(bsp_triPrismGeom.subtract(bsp_cubeCutter));
+            }
+
+            // makes the upper half of the train
+            function makeTrainCarGeomUpperBevel(width, height, depth, offsetX, offsetY, offsetZ) {
+                
+                // main length of box car and beveled head
+                var boxGeom = new THREE.BoxGeometry(width, height/1.8, depth);
+
+                // triangular prism
+                var A = new THREE.Vector2( 0, 0 );
+                var B = new THREE.Vector2( 0, height/1.9 );
+                var C = new THREE.Vector2( width/13, 0 );
+                var prismGeom = new PrismGeometry( [ A, B, C ], depth );
+
+                // align them 
+                boxGeom.translate(width/2 + offsetX, height*0.75 + offsetY, offsetZ);
+                prismGeom.translate(width + offsetX, height*0.5 + offsetY, offsetZ - depth/2);
+
+                // use ThreeBSP to union geometries
+                var bsp_boxGeom = new ThreeBSP(boxGeom);
+                var bsp_prismGeom = new ThreeBSP(prismGeom);
+
+                return bsp_boxGeom.union(bsp_prismGeom);
+            }
+
+            //cuts out door holes in the doors using ThreeBSP
+            function addDoorHoles(bspGeom, width, height, offsetX, offsetY) {
+                var doorGeom = new THREE.BoxGeometry(height/3.2, height, height*1.5);
+                doorGeom.translate( 1.132 - offsetX, height/2.5 + offsetY, 0 );
+
+                var bsp_door = new ThreeBSP(doorGeom);
+                bspGeom = bspGeom.subtract(bsp_door);
+
+                doorGeom.translate(width*0.7876, 0, 0);
+                var bsp_door = new ThreeBSP(doorGeom);
+                bspGeom = bspGeom.subtract(bsp_door);
+
+                return bspGeom;
+            }
+
+            //creates and returns a door object taking in the material, width, and height of the door
+            function makeDoor(material, width, height) {
+                var door = new THREE.Object3D();
+
+                // var doorGeom = new THREE.BoxGeometry(height/3, height, 0.2);
+                var doorGeom = createBoxWithRoundedEdges( height/2.7, height, 0.25, 1 / 9, 16 );
+                var bsp_door = new ThreeBSP(doorGeom);
+
+                // cut out window
+                var windowGeom = new THREE.BoxGeometry(height/4, height/3.2, 0.25);
+                windowGeom.translate(0, height*0.27, 0);
+                var bsp_window = new ThreeBSP(windowGeom);
+
+                bsp_door = bsp_door.subtract(bsp_window);
+
+                var doorMesh = makeMesh(bsp_door, material);
+                doorMesh.position.set(0, height*0.45, 0);
+                door.add(doorMesh);
+
+                // make back of door brown
+                var bsp_back_door = new ThreeBSP(new THREE.Mesh(new THREE.BoxGeometry(height/3, height, 0.02)));
+                bsp_back_door = bsp_back_door.subtract(bsp_window);
+                var doorBackMesh = makeMesh(bsp_back_door, colorMaterials[5]);
+                doorBackMesh.position.set(0, height*0.45, -0.12);
+                door.add(doorBackMesh);
+
+                // add window
+                var windowMesh = new THREE.Mesh(windowGeom, colorMaterials[3]);
+                windowMesh.position.set(0, height*0.45, 0);
+                door.add(windowMesh);
+
+                // add door bump
+                var doorBumpGeom = createBoxWithRoundedEdges( height/4, height/3, 0.2, 1 / 9, 16 );
+                var doorBumpMesh = new THREE.Mesh(doorBumpGeom, material);
+                doorBumpMesh.position.set(0, height*0.3, 0.1);
+                door.add(doorBumpMesh);
+
+                return door;
+            }
+
+            //creates and returns a set of four doors using a specified material, wdith, height, and depth of the door
+            function addDoors(material, width, height, depth) {
+                var doorSet = new THREE.Object3D();
+
+                // 1st door
+                var door1 = makeDoor(material, width, height);
+                door1.position.x = 1.132;
+                door1.position.z = depth*0.51;
+                doorSet.add(door1);
+
+                // 2nd door
+                var door2 = makeDoor(material, width, height);
+                door2.position.x = 1.132 + width*0.7876;
+                door2.position.z = depth*0.51;
+                doorSet.add(door2);
+
+                // 3rd door
+                 var door3 = makeDoor(material, width, height);
+                door3.position.x = 1.132;
+                door3.position.z = -depth*0.51;
+                door3.rotation.y = Math.PI;
+                doorSet.add(door3);
+
+                // 4th door
+                var door4 = makeDoor(material, width, height);
+                door4.position.x = 1.132 + width*0.7876;
+                door4.position.z = -depth*0.51;
+                door4.rotation.y = Math.PI;
+                doorSet.add(door4);
+
+                return doorSet;
+            }
+
+            // prism geometry inspired by Alexan0208 @http://alexan0308.github.io/threejs/examples/#webgl_geometry_PrismGeometry
+            PrismGeometry = function ( vertices, height ) {
+
+                var Shape = new THREE.Shape();
+
+                ( function f( ctx ) {
+
+                    ctx.moveTo( vertices[0].x, vertices[0].y );
+                    for (var i=1; i < vertices.length; i++) {
+                        ctx.lineTo( vertices[i].x, vertices[i].y );
+                    }
+                    ctx.lineTo( vertices[0].x, vertices[0].y );
+
+                } )( Shape );
+
+                var settings = { };
+                settings.depth = height;
+                settings.bevelEnabled = false;
+                THREE.ExtrudeGeometry.call( this, Shape, settings );
+
+            };
+            PrismGeometry.prototype = Object.create( THREE.ExtrudeGeometry.prototype );
+
+            // takes a train car BSP geometry and adds windows but subtracting boxes from the car
+            function addWindowHoles(bspGeom, width, height) {
+                // cut out square windows
+                var windowGeom = new THREE.BoxGeometry(height/3.6, height/3.2, height*1.5);
+                // var windowGeom = createBoxWithRoundedEdges( height/3.6, height/3.2, height*1.5, 1 / 9, 16 );
+                windowGeom.translate( -0.62, height*0.72, 0 );
+
+                var bsp_window;
+                // cut out all the square windows
+                for (let i = 0; i < 11; i++) {
+                    windowGeom.translate( 1.75, 0, 0 );
+                    bsp_window = new ThreeBSP(windowGeom);
+                    bspGeom = bspGeom.subtract(bsp_window);
+                }
+
+                var A = new THREE.Vector2( 0, 0 );
+                var B = new THREE.Vector2( 0, height/3.2 );
+                var C = new THREE.Vector2( 0.2, height/3.2 );
+                var D = new THREE.Vector2( height/4.5, 0 );
+             
+                // triangle windows
+                var windowGeom = new PrismGeometry( [ A, B, C, D ], height*1.5 );
+                windowGeom.translate( width*0.985, height*0.565, -height*0.75 );
+
+                bsp_window = new ThreeBSP(windowGeom);
+                bspGeom = bspGeom.subtract(bsp_window);
+
+                // cut out front windows
+                var windowGeom = new THREE.BoxGeometry(height, height/2.7, params.depth/2.5);
+                windowGeom.translate( width*1.01, height/1.35, params.depth*0.24 );
+                bsp_window = new ThreeBSP(windowGeom);
+                bspGeom = bspGeom.subtract(bsp_window);
+
+                windowGeom.translate( 0, 0, -params.depth*0.48 );
+                bsp_window = new ThreeBSP(windowGeom);
+                bspGeom = bspGeom.subtract(bsp_window);
+
+                return bspGeom;
+            }
+
+            // takes a ThreeBSP geometry and material and returns the mesh
+            function makeMesh(bsp_geom, material) {
+                var mesh = bsp_geom.toMesh();
+                mesh.material = material;
+
+                return mesh;
+            }
+
+            // makes two wheel holes for the train car in the shape of trapezoids
+            function addWheelHoles(bsp_geom, width, height, depth) {
+                // wheel hole is the shape of a trapezoid
+                var trapezoidGeom = new THREE.CylinderGeometry( width/12-0.5, width/12, height*0.99, 4, 1 );
+                trapezoidGeom.rotateY( Math.PI / 4 );
+                trapezoidGeom.scale( 1, 1, depth );
+                trapezoidGeom.translate(width/3, height/2.1, 0);
+
+                // add first hole
+                var bsp_trapezoid = new ThreeBSP(trapezoidGeom);
+                bsp_geom = bsp_geom.subtract(bsp_trapezoid);
+
+                // add second hole
+                trapezoidGeom.translate(width/1.5, 0, 0);
+                var bsp_trapezoid = new ThreeBSP(trapezoidGeom);
+                bsp_geom = bsp_geom.subtract(bsp_trapezoid);
+
+                return bsp_geom;
+            }
+
+            // add wheels to train car
+            function makeWheels(width, height, depth, material) {
+                var wheelSet = new THREE.Object3D();
+                var space = height/15*1.7; // space between two wheels in the same hole
+                var displacement = params.space; // displaced 
+                // use same wheel shape for every wheel
+                var wheelGeom = new THREE.TorusGeometry( height/15, height/22.5, 16, 100 );
+                wheelGeom.scale(1,1.15,1);
+
+                // right train
+                // 1st wheel
+                w1 = new THREE.Mesh(wheelGeom, material);
+                w1.position.set(width/3 - space + displacement, -height/12, depth/2-height/15)
+                wheelSet.add(w1);
+                // adjacent wheel
+                w2 = new THREE.Mesh(wheelGeom, material);
+                w2.position.set(width/3 + space + displacement, -height/12, depth/2-height/15)
+                wheelSet.add(w2);
+
+                // 3rd wheel
+                w3 = new THREE.Mesh(wheelGeom, material);
+                w3.position.set(width - space + displacement, -height/12, depth/2-height/15)
+                wheelSet.add(w3);
+                // adjacent wheel
+                w4 = new THREE.Mesh(wheelGeom, material);
+                w4.position.set(width + space + displacement, -height/12, depth/2-height/15)
+                wheelSet.add(w4);
+
+                // 5th wheel
+                w5 = new THREE.Mesh(wheelGeom, material);
+                w5.position.set(width/3 - space + displacement, -height/12, -(depth/2-height/15))
+                wheelSet.add(w5);
+                // adjacent wheel
+                w6 = new THREE.Mesh(wheelGeom, material);
+                w6.position.set(width/3 + space + displacement, -height/12, -(depth/2-height/15))
+                wheelSet.add(w6);
+
+                // 7th wheel
+                w7 = new THREE.Mesh(wheelGeom, material);
+                w7.position.set(width - space + displacement, -height/12, -(depth/2-height/15))
+                wheelSet.add(w7);
+                // adjacent wheel
+                w8 = new THREE.Mesh(wheelGeom, material);
+                w8.position.set(width + space + displacement, -height/12, -(depth/2-height/15))
+                wheelSet.add(w8);
+
+                // left train
+                // 9th wheel
+                w9 = new THREE.Mesh(wheelGeom, material);
+                w9.position.set(-(width/3 - space) - displacement, -height/12, depth/2-height/15)
+                wheelSet.add(w9);
+                // adjacent wheel
+                w10 = new THREE.Mesh(wheelGeom, material);
+                w10.position.set(-(width/3 + space) - displacement, -height/12, depth/2-height/15)
+                wheelSet.add(w10);
+
+                // 11th wheel
+                w11 = new THREE.Mesh(wheelGeom, material);
+                w11.position.set(-(width - space) - displacement, -height/12, depth/2-height/15)
+                wheelSet.add(w11);
+                // adjacent wheel
+                w12 = new THREE.Mesh(wheelGeom, material);
+                w12.position.set(-(width + space) - displacement, -height/12, depth/2-height/15)
+                wheelSet.add(w12);
+
+                // 13th wheel
+                w13 = new THREE.Mesh(wheelGeom, material);
+                w13.position.set(-(width/3 - space) - displacement, -height/12, -(depth/2-height/15))
+                wheelSet.add(w13);
+                // adjacent wheel
+                w14 = new THREE.Mesh(wheelGeom, material);
+                w14.position.set(-(width/3 + space) - displacement, -height/12, -(depth/2-height/15))
+                wheelSet.add(w14);
+
+                // 15th wheel
+                w15 = new THREE.Mesh(wheelGeom, material);
+                w15.position.set(-(width - space) - displacement, -height/12, -(depth/2-height/15))
+                wheelSet.add(w15);
+                // adjacent wheel
+                w16 = new THREE.Mesh(wheelGeom, material);
+                w16.position.set(-(width + space) - displacement, -height/12, -(depth/2-height/15))
+                wheelSet.add(w16);
+
+                wheelList = [w1, w2, w3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13, w14, w15, w16];
+                return wheelSet;
+            }
+
+            // make interior of car brown
+            function makeInterior(width, height, depth, material){
+                
+                // make train car body with holes for windows
+                var carGeomLower = makeTrainCarGeomLowerBevel(width-0.2, height, depth, 0, 0, 0);
+                var carGeomUpper = makeTrainCarGeomUpperBevel(width-0.2, height, depth, 0, 0, 0);
+                var carGeom = carGeomLower.union(carGeomUpper);
+
+                //cuts out the interior of the train
+                carGeom = addWindowHoles(carGeom, width, height);
+                carGeom = addDoorHoles(carGeom, width, height, .01, 0);
+                var carInsideGeom = makeTrainCarGeomLowerBevel(width-0.4, height, depth-0.15, 0.15, 0, 0).union(makeTrainCarGeomUpperBevel(width-0.4, height, depth-0.15, 0.15, 0, 0));
+                carInsideGeom = addDoorHoles(carInsideGeom, width, height, .01, 0);
+                carGeom = carGeom.subtract(carInsideGeom);  // remove inside of train
+                var carMesh = makeMesh(carGeom, material);
+
+                return carMesh;
+            }
+
+            //creates and returns the top of the train which is composed of different objects to decorate it
+            function makeTrainTop(width, height, depth, material) {
+                var top = new THREE.Object3D();
+
+                // top cover
+                var boxGeom = createBoxWithRoundedEdges( width*1.01, height/9, depth*1.02, 1 / 9, 10 );
+                var box = new THREE.Mesh(boxGeom, material);
+                box.position.set(width/2, height*0.98, 0);
+                top.add(box);
+
+                // add cylinders on top to decorate
+                var smallCyl1 = makeTrainTopCylinder(1.2, .5, material);
+                var smallCyl2 = makeTrainTopCylinder(1.2, .5, material);
+                var longCyl = makeTrainTopCylinderLong(2, 1.5, .7, material);
+                smallCyl1.position.set(width*0.77, height*1.04, 0); // front side of car
+                smallCyl2.position.set(width*0.17, height*1.04, 0); // back side of car
+                longCyl.position.set(width*0.47, height*1.04, 0); // center of train car x-wise
+                top.add(smallCyl1);
+                top.add(smallCyl2);
+                top.add(longCyl);
+
+                return top;
+            }
+
+            // code from Paul West @https://jsfiddle.net/prisoner849/303kdmnd/
+            function createBoxWithRoundedEdges( width, height, depth, radius0, smoothness ) {
+                let shape = new THREE.Shape();
+                let eps = 0.00001;
+                let radius = radius0 - eps;
+                shape.absarc( eps, eps, eps, -Math.PI / 2, -Math.PI, true );
+                shape.absarc( eps, height -  radius * 2, eps, Math.PI, Math.PI / 2, true );
+                shape.absarc( width - radius * 2, height -  radius * 2, eps, Math.PI / 2, 0, true );
+                shape.absarc( width - radius * 2, eps, eps, 0, -Math.PI / 2, true );
+                let geometry = new THREE.ExtrudeBufferGeometry( shape, {
+                    depth: depth - radius0 * 2,
+                    bevelEnabled: true,
+                    bevelSegments: smoothness * 2,
+                    steps: 1,
+                    bevelSize: radius,
+                    bevelThickness: radius0,
+                    curveSegments: smoothness
+                });
+                
+                geometry.center();
+                
+                return geometry;
+            }
+
+            //creates a train car and returns the train car object
+            function makeTrainCar(width, height, depth, material) {
+                var car = new THREE.Object3D();
+                
+                // make train car body with holes for windows
+                var carGeomLower = makeTrainCarGeomLowerBevel(width, height, depth, 0, 0, 0);
+                var carGeomUpper = makeTrainCarGeomUpperBevel(width, height, depth, 0, 0, 0);
+                var carGeom = carGeomLower.union(carGeomUpper);
+
+                carGeom = addWindowHoles(carGeom, width, height);
+                carGeom = addDoorHoles(carGeom, width, height, 0, 0);
+                var carInsideGeom = makeTrainCarGeomLowerBevel(width-0.2, height, depth-0.1, 0.1, 0, 0).union(makeTrainCarGeomUpperBevel(width-0.2, height, depth-0.1, 0.1, 0, 0));
+                carInsideGeom = addDoorHoles(carInsideGeom, width, height, 0, 0);
+                carGeom = carGeom.subtract(carInsideGeom);  // remove inside of train
+                var carMesh = makeMesh(carGeom, material);
+                car.add(carMesh);
+
+                // add red planking to the side of the train car
+                var plankingGeom = makeTrainCarGeomLowerBevel(width+0.25, height, depth+0.2, 0, 0, 0);
+                plankingGeom = addDoorHoles(plankingGeom, width, height, -0.1, 0);
+                var plankingInsideGeom = makeTrainCarGeomLowerBevel(width-0.1, height, depth-0.15, 0.1, 0, 0);
+                plankingGeom = plankingGeom.subtract(plankingInsideGeom);  // remove inside of plank prism
+                var planking = makeMesh(plankingGeom, materials[5]);
+                planking.position.x = -0.1;
+                car.add(planking);
+
+                // fix planking
+                var A = new THREE.Vector2( -0.03, 0 );
+                var B = new THREE.Vector2( -0.03, height/2 );
+                var C = new THREE.Vector2( width/14, height/2 );
+                var D = new THREE.Vector2( width/12, 0 );
+                var prismGeom3 = new PrismGeometry( [ A, B, C, D ], depth*1.034 );
+                prismGeom3.translate(width+0.15, 0, -depth*0.517);
+                var frontInsideGeom = new ThreeBSP(prismGeom3);
+                // fix side
+                var prismGeom1 = new PrismGeometry( [ A, B, C, D ], depth*1.035 );
+                prismGeom1.translate(width+0.15, 0, -depth*0.5175);
+                var bsp_prismGeom1 = new ThreeBSP(prismGeom1);
+                var front1 = bsp_prismGeom1.subtract(frontInsideGeom);
+                car.add(makeMesh(front1, materials[8]));
+                // fix front
+                var prismGeom2 = new PrismGeometry( [ A, B, C, D ], depth*1.034 );
+                prismGeom2.translate(width+0.16, 0, -depth*0.517);
+                var bsp_prismGeom2 = new ThreeBSP(prismGeom2);
+                var front2 = bsp_prismGeom2.subtract(frontInsideGeom);
+                car.add(makeMesh(front2, materials[9]));
+
+                // add train bottom
+                var bottomGeom = new THREE.BoxGeometry(width*1.1, height/10, depth);
+                bottomGeom.translate(width*0.55, height/10, 0);
+                var bsp_bottom = addWheelHoles(new ThreeBSP(bottomGeom), width, height/10, depth);
+                var bottom = makeMesh(bsp_bottom, colorMaterials[4]);
+                bottom.position.y = -height/6.6;
+                car.add(bottom);
+
+                // add train top
+                var top = makeTrainTop(width, height, depth, colorMaterials[4]);
+                top.position.y = height*0.1
+                car.add(top);
+
+                // add "glass" to windows
+                var windowGeom = makeTrainCarGeomUpperBevel(width-0.1, height, depth-0.1, 0, 0, 0);
+                windowGeom = addDoorHoles(windowGeom, width, height, 0, 1.5);
+                var windowInsideGeom = makeTrainCarGeomUpperBevel(width-0.11, height+0.05, depth-0.11, 0, -0.04, 0);
+                windowGeom = windowGeom.subtract(windowInsideGeom); // remove inside of glass prism
+                var window = makeMesh(windowGeom, colorMaterials[3]);
+                car.add(window);
+
+                // wood
+                var interior = makeInterior(width, height, depth - 0.1, colorMaterials[5]);
+                interior.position.x = .01;
+                car.add(interior);
+
+                // add train headlight with light beam
+                var spotlight = makeSpotlight(.45, colorMaterials[4], 1);
+                spotlight.rotation.z = TW.degrees2radians(-4);
+                spotlight.position.set(width-0.25, height*1.06, 0);
+                var light = new THREE.SpotLight(0xffffff, 1, 0, TW.degrees2radians(20), 0, 1);
+                light.position.set(width, height*1.06, 0);
+                light.target.position.set(30, 0, 0);
+                car.add(spotlight);
+                car.add(light);
+                car.add(light.target);
+
+                // add flooring to car
+                var floor = makeFloor(width*1.08, depth);
+                floor.position.set(width*0.54, 0, 0);
+                car.add(floor);
+
+                //add seats to car
+                var seat = makeSeatRows(width*0.68, height/2.25, depth/5, 1.7);
+                seat.position.set(width*0.45, 0, 0);
+                car.add(seat);
+
+                // add table
+                var tableMesh = new THREE.Mesh(new THREE.BoxGeometry(width*0.09, 0.2, depth*0.99), colorMaterials[5]);
+                tableMesh.position.set(width*1.03, height*0.49, 0);
+                car.add(tableMesh);
+
+                // add train decoration to the outside of the car
+                var decor = makeExteriorDecor(width, height, depth);
+                decor.position.x = width*1.1;
+                car.add(decor);
+
+                // add front sign
+                var sign = makeFrontSign(width, height, depth);
+                sign.position.set(width*1.088, height/4, 0);
+                sign.rotation.z = TW.degrees2radians(5);
+                car.add(sign);
+
+                return car;
+            }
+
+            //creates and adds two train cars to the train and returns the train object
+            function makeTrain(){
+                var train = new THREE.Object3D();
+
+                var space = params.space;
+
+                // make two base car geometries
+                var car1 = makeTrainCar(params.width, params.height, params.depth, colorMaterials[0]);
+                var car2 = makeTrainCar(params.width, params.height, params.depth, colorMaterials[0]);
+                car1.position.x = space;
+                car2.position.x = -space;
+                car2.rotation.y = Math.PI;
+                train.add(car1);
+                train.add(car2);
+
+                // add a full set of wheels
+                wheelSet = makeWheels(params.width, params.height, params.depth, colorMaterials[2]);
+                wheelSet.position.y = -params.height/20;
+                train.add(wheelSet);
+
+                // add 4 doors
+                doorSetRight = addDoors(colorMaterials[0], params.width, params.height, params.depth);
+                doorSetLeft = addDoors(colorMaterials[0], params.width, params.height, params.depth);
+                doorSetRight.position.x = space;
+                doorSetLeft.position.x = -space;
+                doorSetLeft.rotation.y = Math.PI;
+                train.add(doorSetRight);
+                train.add(doorSetLeft);
+                
+                // add black connector in the middle
+                var connector = addConnector();
+
+                train.add(connector);
+
+                return train;
+            }
+
+            // adds a cute sign with text to the front of the train
+            function makeFrontSign(width, height, depth) {
+                var sign = new THREE.Object3D();
+
+                var boxMesh1 = new THREE.Mesh(createBoxWithRoundedEdges( 0.1, height/2.7, depth/5, 0.4 / 9, 5 ), colorMaterials[6]);
+                var boxMesh2 = new THREE.Mesh(createBoxWithRoundedEdges( 0.1, height/3, depth/6, 0.4 / 9, 5 ), colorMaterials[7]);
+                boxMesh2.position.x = 0.1;
+                sign.add(boxMesh1);
+                sign.add(boxMesh2);
+
+                // get Chinese font
+                var loader = new THREE.FontLoader();
+                loader.load('./materials/Ma Shan Zheng_Regular.json',
+                function (font) {
+                    var textGeom1 = new THREE.TextGeometry('中', 
+                                                            {font: font,
+                                                            size: 0.5,
+                                                            height: 0.1,
+                                                            } );
+                    var textObj1 = new THREE.Mesh(textGeom1, colorMaterials[8]);
+                    textObj1.position.set(0.15, 0.1, 0.32);
+                    textObj1.rotation.y = Math.PI/2;
+                    sign.add(textObj1);
+
+                    var textGeom2 = new THREE.TextGeometry('道', 
+                                                            {font: font,
+                                                            size: 0.5,
+                                                            height: 0.1,
+                                                            } );
+                    var textObj2 = new THREE.Mesh(textGeom2, colorMaterials[8]);
+                    textObj2.position.set(0.15, -0.6, 0.32);
+                    textObj2.rotation.y = Math.PI/2;
+                    sign.add(textObj2);
+                } );
+
+                return sign;
+            }
+
+            // adds small details to the exterior of the train
+            function makeExteriorDecor(width, height, depth) {
+                var decor = new THREE.Object3D();
+
+                // two black knobs at bottom of train car's front face
+                var cylGeom = new THREE.CylinderGeometry(height/20, height/20, width/50, 20);
+                var cylMesh = new THREE.Mesh(cylGeom, colorMaterials[8]);
+                cylMesh.rotation.z = Math.PI/2;
+                cylMesh.position.set(0, -height/19, -depth*0.4);
+                decor.add(cylMesh);
+
+                var cylMesh = new THREE.Mesh(cylGeom, colorMaterials[8]);
+                cylMesh.rotation.z = Math.PI/2;
+                cylMesh.position.set(0, -height/19, depth*0.4);
+                decor.add(cylMesh);
+
+                // mini lights at each side of the sign
+                // light containers
+                var cylGeom = new THREE.CylinderGeometry(height/20, height/40, width/80, 20);
+                var cylMesh = new THREE.Mesh(cylGeom, colorMaterials[6]);
+                cylMesh.rotation.z = Math.PI/2;
+                cylMesh.position.set(-width*0.01, height/5, -depth*0.35);
+                decor.add(cylMesh);
+                var cylMesh = new THREE.Mesh(cylGeom, colorMaterials[6]);
+                cylMesh.rotation.z = Math.PI/2;
+                cylMesh.position.set(-width*0.01, height/5, depth*0.35);
+                decor.add(cylMesh);
+
+                // light bulbs
+                var sphereGeom = new THREE.SphereGeometry(height/50, 32, 16 );
+                var sphereMesh = new THREE.Mesh(sphereGeom, colorMaterials[1]);
+                sphereMesh.position.set(-0.1, height/5, -depth*0.35);
+                decor.add(sphereMesh);
+                var sphereMesh = new THREE.Mesh(sphereGeom, colorMaterials[1]);
+                sphereMesh.position.set(-0.1, height/5, depth*0.35);
+                decor.add(sphereMesh);
+
+                // metal side panels
+                var boxGeom = createBoxWithRoundedEdges( width/10, height/10, 0.1, 1 / 9, 5 );
+                var boxMesh = new THREE.Mesh(boxGeom, colorMaterials[6]);
+                boxMesh.position.set(-width*0.648, height*0.35, depth*0.52);
+                decor.add(boxMesh);
+                var boxMesh = new THREE.Mesh(boxGeom, colorMaterials[6]);
+                boxMesh.position.set(-width*0.648, height*0.35, -depth*0.52);
+                decor.add(boxMesh);
+
+                return decor;
+            }
+
+            // makes one row of seats and returns seat object
+            function makeSeat(width, height, depth){
+
+                var seat = new THREE.Object3D();
+                
+                //makes the bottom of the seat with brown color
+                var bottomGeom = new THREE.BoxGeometry(width, height/2, depth);
+                var bottomMesh = new THREE.Mesh(bottomGeom, colorMaterials[5]);
+                bottomMesh.position.y = height/4;
+                bottomMesh.position.z = depth/2;
+                seat.add(bottomMesh);
+
+                //makes the side of the seat with brown color
+                var sideGeom = new THREE.BoxGeometry(width, height, depth/10);
+                var sideMesh = new THREE.Mesh(sideGeom, colorMaterials[5]);
+                sideMesh.position.y = (height * 1.5)/2;
+                sideMesh.position.z = depth - depth/20;
+                seat.add(sideMesh);
+
+                //makes the bottom of the cushion with red color
+                var cushionBottomGeom = createBoxWithRoundedEdges( width, height/6, depth, 1 / 9, 5 );
+                var cushionBottomMesh = new THREE.Mesh(cushionBottomGeom, materials[6]);
+                cushionBottomMesh.position.y = height/2 + height/12;
+                cushionBottomMesh.position.z = depth/2 -depth/10;
+                seat.add(cushionBottomMesh);
+
+                //makes the side of the cushion with the red color
+                var cushionSideGeom = createBoxWithRoundedEdges( width, height/1.4, depth/4, 1 / 9, 5 );
+                var cushionSideMesh = new THREE.Mesh(cushionSideGeom, materials[6]);
+                cushionSideMesh.position.y = height/2 + (height/1.4)/2;
+                cushionSideMesh.position.z =  depth -(3 * depth)/15;
+                seat.add(cushionSideMesh);
+
+                return seat;
+            }
+
+            // creates two rows of seats for the two sides of one train car and return seatRows object
+            function makeSeatRows(width, height, depth, space){
+                var seatRows = new THREE.Object3D();
+
+                var row1 = makeSeat(width, height, depth);
+                var row2 = makeSeat(width, height, depth);
+
+                row2.rotation.y = Math.PI;
+                row2.position.z = -space;
+                row1.position.z = space;
+
+                seatRows.add(row1);
+                seatRows.add(row2)
+
+                return seatRows;
+
+            }
+
+            //creates the stop sign on the platform taking the radius and height as parameters
+            //returns the sign object
+            function makeSign(radius, height){
+                var sign = new THREE.Object3D();
+
+                var barGeom = new THREE.CylinderGeometry(radius, radius, height, 32);
+                var barMesh = new THREE.Mesh(barGeom, materials[4]);
+
+                var plateGeom = new THREE.CylinderGeometry(radius * 10, radius * 10, radius + .2, 32);
+                var plateMesh = new THREE.Mesh(plateGeom, colorMaterials[4]);
+
+                plateMesh.rotation.x = Math.PI/2;
+                plateMesh.position.y = height/2;
+
+                sign.add(barMesh);
+                sign.add(plateMesh);
+
+                return sign; 
+
+            }
+
+            //creates floor with plane geometry and returns floor object
+            function makeFloor(width, height){
+                
+                var floor = new THREE.Object3D();
+
+                var planeGeom = new THREE.PlaneGeometry(width, height);
+                var planeMesh = new THREE.Mesh(planeGeom, materials[7]);
+
+                planeMesh.rotation.x = Math.PI/2;
+
+                floor.add(planeMesh);
+
+                return floor;
+            }
+
+            //creates spotlight at the top of the train and returns spotlight object 
+            function makeSpotlight(radius, cylMaterial, side){
+
+                var spotlight = new THREE.Object3D();
+
+                // make light container
+                var cylGeom = new THREE.CylinderGeometry(radius, radius*1.2, radius*2, 20);
+                var cylMesh = new THREE.Mesh(cylGeom, cylMaterial);
+                cylMesh.rotation.z = Math.PI/2;
+                cylMesh.position.x = radius/2;
+                cylMesh.position.y = radius;
+                spotlight.add(cylMesh);
+
+                var sphereGeom = new THREE.SphereGeometry(radius, 32, 16 );
+                var sphereMesh = new THREE.Mesh(sphereGeom, cylMaterial);
+                sphereMesh.position.y = radius;
+                sphereMesh.position.x = -radius/2;
+                spotlight.add(sphereMesh);
+
+                // make light bulb
+                var sphereGeom = new THREE.SphereGeometry(radius, 32, 16 );
+                var sphereMesh = new THREE.Mesh(sphereGeom, colorMaterials[1]);
+
+                sphereMesh.position.x = side * 0.5;
+                sphereMesh.position.y = radius;
+                spotlight.add(sphereMesh);
+
+                return spotlight;
+            }
+
+            //creates the circular cylinder decoration at the top of the train and returns cylinder object 
+            function makeTrainTopCylinder(radius, height, material){
+
+                var cylinder = new THREE.Object3D();
+                
+                var cylinderGeom = new THREE.CylinderGeometry(radius, radius, height, 20);
+                var cylinderMesh = new THREE.Mesh(cylinderGeom, material);
+                cylinderMesh.position.y = height/2;
+                cylinder.add(cylinderMesh);
+
+                return cylinder;
+            }
+
+            //creates the longer cylinder decoration at the top of the train and returns cylinder object 
+            function makeTrainTopCylinderLong(width, radius, height, material){
+
+                var cylinderLong = new THREE.Object3D();
+
+                var cylinder1 = makeTrainTopCylinder(radius, height, material);
+                var cylinder2 = makeTrainTopCylinder(radius, height, material);
+
+                cylinder1.position.x = width/2;
+                cylinder2.position.x = -width/2;
+
+                var boxGeom = new THREE.BoxGeometry(width, height, radius * 2);
+                var boxMesh = new THREE.Mesh(boxGeom, material);
+                boxMesh.position.y = height/2;
+
+                cylinderLong.add(boxMesh);
+                cylinderLong.add(cylinder1);
+                cylinderLong.add(cylinder2);
+
+                return cylinderLong;
+            }
+
+            //creates pieces to connect the two train cars and return connector object
+            function addConnector(){
+
+                var connector = new THREE.Object3D();
+
+                var space = params.space;
+                var width = space * 2 - .01;
+                var height = params.height - .5;
+                var depth = params.depth - .5;
+
+                var boxGeom = new THREE.BoxGeometry(width, height, depth);
+                var boxMesh = new THREE.Mesh(boxGeom, colorMaterials[2]);
+                boxMesh.position.y = height/2;
+
+                connector.add(boxMesh);
+
+                return connector;
+            }
+
+
+            // make train station platform
+            function makePlatform() {
+                // make plane size relative to ground size
+                var dimension = params.groundDimension;
+                var platHeight = 1;
+
+                var platGeom = new THREE.BoxGeometry(dimension/12, platHeight, dimension/150);
+                var platMesh = new THREE.Mesh(platGeom, materials[1])
+                platMesh.position.set(0, platHeight*0.5, -params.plankDepth*2); // add a little extra on y so it doesn't glitch
+
+                return platMesh;
+            }
+
+            // creates a mirror like plane and add it to the scene
+            // thank you to jbouney for this beautiful water that is compatible with our version of THREE.js!
+            // @https://github.com/jbouny/ocean
+            function addWater() {
+                water = new THREE.Water(renderer, camera, scene, {
+                    textureWidth: 512, 
+                    textureHeight: 712,
+                    waterNormals: waterNormal,
+                    alpha: 	0.9,
+                    sunDirection: dirLight.position.normalize(),
+                    sunColor: 0xffffff,
+                    waterColor: 0x001e0f,
+                    distortionScale: 50.0
+                });
+
+                var mirrorMesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(params.groundDimension, params.groundDimension, 10, 10), water.material);
+                mirrorMesh.add(water);
+                mirrorMesh.rotation.x = - Math.PI * 0.5;
+
+                scene.add(mirrorMesh);
+            }
+
+            // render the scene
+            function remakeScene() {
+                addLighting();
+
+                var ground = makeGround();
+                scene.add(ground);
+
+                var plat = makePlatform();
+                scene.add(plat);
+
+                train = makeTrain();
+                train.position.y = 1.3;
+                train.position.x = -params.groundDimension/2;
+                // train.position.x = 0;
+                scene.add(train);
+
+                var sign = makeSign(.1, 5);
+                sign.position.set(-35, 3, -10);
+                scene.add(sign);
+
+                // Create the water effect
+                addWater();
+
+                render();
+            }
+            // ====================================================================
+            // handle lights
+
+            function addLighting() {
+                // light up the scene evenly
+                ambLight = new THREE.AmbientLight(new THREE.Color("white"), 0.8);
+                scene.add(ambLight);
+                
+                // directional light coming from slightly right, front, and up direction
+                dirLight = new THREE.DirectionalLight( new THREE.Color(0xffef8c), 0.5 );
+                dirLight.position.set( -params.groundDimension, 100, params.groundDimension );
+                scene.add(dirLight);
+            }
+
+            // ====================================================================
+            // make keyboard call functions
+
+            //updates the camera parameters to show the train from the side
+            function showTrainSideView() {
+                params.insideTrain = false;
+                cameraParams = {
+                    near: 1,
+                    far: params.groundDimension,
+                    fov: 100,
+                    aspectRatio: window.innerWidth/window.innerHeight,
+                    atX: 0,
+                    atY: 5,
+                    atZ: 0,
+                    eyeX: 0,
+                    eyeY: 5,
+                    eyeZ: 40,
+                    upX: 0,
+                    upY: 1,
+                    upZ: 0
+                };
+                camera = setupCamera();
+            }
+
+            //updates the camera parameters to follow the train as it moves from the side
+            function followTrainSideView() {
+                params.insideTrain = true;
+                cameraParams = {
+                    near: 1,
+                    far: params.groundDimension,
+                    fov: 100,
+                    aspectRatio: window.innerWidth/window.innerHeight,
+                    atX: 0,
+                    atY: 5,
+                    atZ: -params.groundDimension,
+                    eyeX: train.position.x,
+                    eyeY: 5,
+                    eyeZ: 30,
+                    upX: 0,
+                    upY: 1,
+                    upZ: 0
+                };
+                camera = setupCamera();
+                water.render();
+            }
+
+            //updates the camera parameters to show the train from the side
+            function showPlatformView() {
+                params.insideTrain = false;
+                cameraParams = {
+                    near: 1,
+                    far: params.groundDimension,
+                    fov: 100,
+                    aspectRatio: window.innerWidth/window.innerHeight,
+                    atX: 0,
+                    atY: 5,
+                    atZ: 0,
+                    eyeX: params.width*1.5,
+                    eyeY: 5,
+                    eyeZ: -params.plankDepth*1.5,
+                    upX: 0,
+                    upY: 1,
+                    upZ: 0
+                };
+                camera = setupCamera();
+            }
+
+            //updates the camera parameters to show the train from the inside
+            function showInsideTrain() {
+                params.insideTrain = true;
+                cameraParams = {
+                    near: 1,
+                    far: params.groundDimension,
+                    fov: 100,
+                    aspectRatio: window.innerWidth/window.innerHeight,
+                    atX: params.groundDimension,
+                    atY: 5,
+                    atZ: 0,
+                    eyeX: train.position.x,
+                    eyeY: 4.5,
+                    eyeZ: 0,
+                    upX: 0,
+                    upY: 1,
+                    upZ: 0
+                };
+                camera = setupCamera();
+            }
+            
+            // ====================================================================
+            // animation 
+
+            // state variables of the animation
+            var animationState;
+
+            // sets the animationState to its initial setting
+            function resetAnimationState() {
+                animationState = {
+                    vx: 1, //velocity of the train
+                    rz: 1.2/(params.height/15), //sets the rotation angle for the wheels
+                    dx: 0.015
+                }
+            }
+            resetAnimationState();
+
+            // pauses train
+            function pauseAnimation() {
+                animationState.vx = 0;
+                animationState.rz = 0;
+                params.moving = false;
+            }
+
+            // increase train speed after leaving station
+            function increaseSpeed() {
+                animationState.vx += .0015;
+                animationState.rz += .001;
+            }
+
+            // decreases train speed before arriving at station
+            function decreaseSpeed() {
+                animationState.vx -= .001;
+                animationState.rz -= .0005;
+            }
+
+            // handles door movement at station
+            function doorAnimation() {
+                if (!params.doorOpened) {
+                    doorSetLeft.position.x -= animationState.dx;
+                    doorSetRight.position.x += animationState.dx;
+                } else if (params.doorClosing) {
+                    doorSetLeft.position.x += animationState.dx;
+                    doorSetRight.position.x -= animationState.dx;
+                }
+            }
+
+            //updates one stop of the animation
+            function oneStep() {
+                // move the water
+                water.material.uniforms.time.value += 1 / 200;
+
+                // move the train
+                train.position.x += animationState.vx;
+                for (let i = 0; i < wheelList.length; i++) {
+                    wheelList[i].rotation.z -= animationState.rz;
+                }
+
+                //if the train is moving
+                if (params.moving) {
+                    //update the camera position if the view is inside the train
+                    if (params.insideTrain) {
+                        camera.position.x += animationState.vx;
+                    }
+
+                    // restart train at left end once the train reaches the end of the box
+                    if (train.position.x >= params.groundDimension/2-params.width*3) {
+                        train.position.x = -params.groundDimension/2 + params.width*3;
+                        params.hasStopped = false;
+                        resetAnimationState();
+                        doorSetRight.position.x = params.space;
+                        doorSetLeft.position.x = -params.space;
+                        if (params.insideTrain) {
+                            camera.position.x = -params.groundDimension/2 + params.width*3;
+                        }
+                    }
+                    // pause train at the platform
+                    else if (train.position.x > 0) {
+                        if (!params.hasStopped) {
+                            params.hasStopped = true;
+                            pauseAnimation();
+                            setTimeout(() => { params.doorOpened = true; }, params.wait*0.25);
+                            setTimeout(() => { params.doorClosing = true; }, params.wait*0.75);
+                            setTimeout(() => { params.moving = true; params.doorClosing = false; params.doorOpened = false;}, params.wait); // restart animation after wait
+                        } else {
+                            increaseSpeed();
+                        }
+                    } else {
+                        decreaseSpeed();
+                    }
+                } else {
+                    doorAnimation();
+                }
+            }
+
+            // updates each frame and renders
+            function animate() {
+                oneStep(); 
+                render();
+                requestAnimationFrame(animate);
+            }
+
+            // quick way to render everything!
+            function render() {
+                water.render();
+                renderer.render(scene, camera);
+            }
+
+            // ====================================================================
+
+        </script>
+    </body>
+</html>
