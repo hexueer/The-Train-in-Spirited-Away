@@ -29,8 +29,9 @@
         <script src="https://cs.wellesley.edu/~cs307/threejs/libs/tw-sp21.js">
         "https://cs.wellesley.edu/~cs307/threejs/libs/tw-fa18.js"
         </script>
+        <script src="./water.js"></script> 
         <!-- Refer to https://sbcode.net/threejs/csg/ to understand the logic of ThreeBSP -->
-        <script src="./threecsg.js"></script>  <!-- code from https://github.com/Wilt/ThreeCSG @Wilt, forked from chandlerprall -->
+        <script src="./threecsg.js"></script> <!-- code from https://github.com/Wilt/ThreeCSG @Wilt, forked from chandlerprall -->
     </head>
     <body>
         <script>
@@ -53,7 +54,7 @@
                 depth: 6, // z
                 space: .5,
                 
-                wait: 6000, // wait time at stop in milliseconds
+                wait: 8000, // wait time at stop in milliseconds
                 hasStopped: false, // if stopped yet in the current cycle
                 moving: true, // keeps track of whether train is in motion
                 insideTrain: false, // camera view should be inside train now
@@ -66,7 +67,7 @@
             //camera parameters
             var cameraParams = {
                     near: 1,
-                    far: params.groundDimension,
+                    far: params.groundDimension*2,
                     fov: 100,
                     aspectRatio: window.innerWidth/window.innerHeight,
                     atX: 0,
@@ -97,7 +98,7 @@
             // initialize environment
 
             //global variables
-            let scene, camera, renderer, skyboxGeo, skybox, controls, train;
+            let scene, camera, renderer, ambLight, dirLight, controls, train, water;
             let wheelList, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13, w14, w15, w16; // wheels need to be global to rotate
             let doorSetRight, doorSetLeft;
 
@@ -111,39 +112,35 @@
                 renderer.domElement.id = "canvas";
                 document.body.appendChild(renderer.domElement);
 
+                // orbit controls for debugging
                 controls = new THREE.OrbitControls(camera, renderer.domElement);
                 controls.enabled = true;
                 controls.maxDistance = params.groundDimension;
 
-                // skyboxGeo = new THREE.BoxGeometry(params.groundDimension, params.groundDimension, params.groundDimension);
-                // skybox = new THREE.Mesh(skyboxGeo, skyMaterials);
-                // scene.add(skybox);
-
-                var skySphereGeo = new THREE.SphereGeometry( 500, 60, 40, 0, Math.PI*2, 0, Math.PI/2 );
+                // make sky
+                var skySphereGeo = new THREE.SphereGeometry( params.groundDimension/2, 60, 40, 0, Math.PI*2, 0, Math.PI/2 );
 				skySphereGeo.scale( - 1, 1, 1 );
-				var skyMat = new THREE.MeshBasicMaterial({map: new THREE.TextureLoader().load('./materials/sunset.png')});
                 var skyMesh = new THREE.Mesh(skySphereGeo, skyMat);
                 skyMesh.rotation.y = TW.degrees2radians(7);
                 scene.add(skyMesh);
 
-
                 window.addEventListener('resize', onWindowResize, false);
                 
-                // // from threeJS audio listener documentation
-                // const listener = new THREE.AudioListener();
-                // camera.add( listener );
+                // from threeJS audio listener documentation
+                const listener = new THREE.AudioListener();
+                camera.add( listener );
 
-                // // create a global audio source
-                // const sound = new THREE.Audio( listener );
+                // create a global audio source
+                const sound = new THREE.Audio( listener );
 
-                // // load a sound and set it as the Audio object's buffer
-                // const audioLoader = new THREE.AudioLoader();
-                // audioLoader.load( 'one_summer_day.ogg', function( buffer ) {
-                //     sound.setBuffer( buffer );
-                //     sound.setLoop( true );
-                //     sound.setVolume( 0.5 );
-                //     sound.play();
-                // });
+                // load a sound and set it as the Audio object's buffer
+                const audioLoader = new THREE.AudioLoader();
+                audioLoader.load( 'one_summer_day.ogg', function( buffer ) {
+                    sound.setBuffer( buffer );
+                    sound.setLoop( true );
+                    sound.setVolume( 0.5 );
+                    sound.play();
+                });
 
                 remakeScene();
                 animate();
@@ -162,30 +159,30 @@
             // prepare materials
             var materials;  
             var colorMaterials; 
-            var skyMaterials;          
-            TW.loadTextures(["materials/rock.jpg", "materials/concrete.jpg", "materials/wood.jpg", "materials/metal.jpg", "materials/water.jpeg", 
+            var skyMat;   
+            var waterNormal;       
+            TW.loadTextures(["materials/rock.jpg", "materials/concrete.jpg", "materials/wood.jpg", "materials/metal.jpg", "materials/waterNormal.jpeg", 
                             "materials/plank.jpg", "materials/velvet.jpg", "materials/floor.jpg", "materials/plank.jpg", "materials/plank.jpg", 
-                            "materials/right.png", "materials/left.png", "materials/top.png", "materials/bottom.png", "materials/front.png", "materials/back.png"],
+                            "materials/sunset.png"],
                             
             function (textures) {
                 adjustTexture(textures[0], 250, 6, false, 0); // rock
                 adjustTexture(textures[1], 10, 2, false, 0); // concrete
                 adjustTexture(textures[2], 2, 1, true, Math.PI/2); // wood for tracks
                 adjustTexture(textures[3], 3, 1, true, 0); // metal for tracks
-                adjustTexture(textures[4], 60, 60, false, 0); // water
                 adjustTexture(textures[5], 10, 1, false, 0); // red planking
                 adjustTexture(textures[6], 1, 2, true, 0); // red velvet
                 adjustTexture(textures[7], 5, 2.5, false, 0); // flooring
                 adjustTexture(textures[8], 0.5, 0.3, false, Math.PI); // red planking rotated
                 adjustTexture(textures[9], 0.5, 0.3, false, Math.PI/2); // red planking rotated
+                
 
                 materials = [new THREE.MeshPhongMaterial({color: 0xffffff,  // 0 rock
                                                         map: textures[0]}),
                             new THREE.MeshPhongMaterial({color: 0xffffff,   // 1 concrete
                                                         map: textures[1]}),
                             new THREE.MeshPhongMaterial({color: 0xffffff,   // 2 water
-                                                        map: textures[4],
-                                                        side: THREE.DoubleSide}), 
+                                                        map: textures[4]}), 
                             new THREE.MeshPhongMaterial({color: 0xffffff,   // 3 wood
                                                         map: textures[2]}),
                             new THREE.MeshPhysicalMaterial({color: 0xffffff,   // 4 metal
@@ -242,11 +239,10 @@
                                 new THREE.MeshPhysicalMaterial({color: new THREE.Color(0xffffff),  // 8 metallic black
                                                         metalness: 1}),  
                                 ];
-                
-                // load in sky materials for skybox
-                skyMaterials = textures.slice(10,16).map(texture => {
-                                return new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide });
-                            });
+
+                skyMat = new THREE.MeshLambertMaterial({map: textures[10]});
+                textures[4].wrapS = textures[4].wrapT = THREE.RepeatWrapping; 
+                waterNormal = textures[4];
 
                 init();
                 TW.mainInit(renderer,scene);
@@ -254,7 +250,8 @@
                 //keyboard controls
                 TW.setKeyboardCallback('a', showTrainSideView, "train side view", false);
                 TW.setKeyboardCallback('s', followTrainSideView, "follow train side view", false);
-                TW.setKeyboardCallback('d', showInsideTrain, "inside train", false);
+                TW.setKeyboardCallback('d', showPlatformView, "at platform", false);
+                TW.setKeyboardCallback('f', showInsideTrain, "inside train", false);
             });
 
             // ====================================================================
@@ -279,18 +276,6 @@
             function makeGround() {
                 var ground = new THREE.Object3D();
 
-                // blue plane for top of the sea
-                var plane2 = new THREE.PlaneGeometry(params.groundDimension, params.groundDimension);
-                var planeMesh2 = new THREE.Mesh(plane2, materials[2]);
-                planeMesh2.rotation.x = Math.PI/2;
-                planeMesh2.position.y = .5;
-                
-                // enable transparency
-                planeMesh2.material.transparent = true;
-                // set opacity to 50%
-                planeMesh2.material.opacity = 0.5; 
-                ground.add(planeMesh2);
-
                 // rock path
                 var path = new THREE.PlaneGeometry(params.groundDimension, params.groundDimension/100);
 
@@ -302,8 +287,8 @@
                 ground.add(pathMesh);
 
                 // train tracks
-                var positionX = -200;
-                for (let i = 0; i <= 200; i++ ){
+                var positionX = -params.groundDimension/2;
+                for (let i = 0; i <= params.groundDimension; i++ ){
                     var track = makeTracks();
                     track.position.x = positionX + params.railDepth/2;
                     positionX += params.railDepth/2;
@@ -817,7 +802,6 @@
                 car.add(spotlight);
                 car.add(light);
                 car.add(light.target);
-                // light.visible = false;
 
                 // add flooring to car
                 var floor = makeFloor(width*1.08, depth);
@@ -1153,11 +1137,33 @@
                 var dimension = params.groundDimension;
                 var platHeight = 1;
 
-                var platGeom = new THREE.BoxGeometry(dimension/15, platHeight, dimension/150);
+                var platGeom = new THREE.BoxGeometry(dimension/12, platHeight, dimension/150);
                 var platMesh = new THREE.Mesh(platGeom, materials[1])
-                platMesh.position.set(-10, platHeight*0.5, -params.plankDepth*2); // add a little extra on y so it doesn't glitch
+                platMesh.position.set(0, platHeight*0.5, -params.plankDepth*2); // add a little extra on y so it doesn't glitch
 
                 return platMesh;
+            }
+
+            // creates a mirror like plane and add it to the scene
+            // thank you to jbouney for this beautiful water that is compatible with our version of THREE.js!
+            // @https://github.com/jbouny/ocean
+            function addWater() {
+                water = new THREE.Water(renderer, camera, scene, {
+                    textureWidth: 512, 
+                    textureHeight: 712,
+                    waterNormals: waterNormal,
+                    alpha: 	0.9,
+                    sunDirection: dirLight.position.normalize(),
+                    sunColor: 0xffffff,
+                    waterColor: 0x001e0f,
+                    distortionScale: 50.0
+                });
+
+                var mirrorMesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(params.groundDimension, params.groundDimension, 10, 10), water.material);
+                mirrorMesh.add(water);
+                mirrorMesh.rotation.x = - Math.PI * 0.5;
+
+                scene.add(mirrorMesh);
             }
 
             // render the scene
@@ -1172,13 +1178,16 @@
 
                 train = makeTrain();
                 train.position.y = 1.3;
-                // train.position.x = -params.groundDimension/2;
-                train.position.x = 0;
+                train.position.x = -params.groundDimension/2;
+                // train.position.x = 0;
                 scene.add(train);
 
                 var sign = makeSign(.1, 5);
-                sign.position.set(-38, 3, -10);
+                sign.position.set(-35, 3, -10);
                 scene.add(sign);
+
+                // Create the water effect
+                addWater();
 
                 render();
             }
@@ -1186,18 +1195,18 @@
             // handle lights
 
             function addLighting() {
-                // 55% intensity
-                var ambLight = new THREE.AmbientLight(new THREE.Color("white"), 0.55);
+                // light up the scene evenly
+                ambLight = new THREE.AmbientLight(new THREE.Color("white"), 0.8);
                 scene.add(ambLight);
                 
                 // directional light coming from slightly right, front, and up direction
-                var dirLight = new THREE.DirectionalLight( new THREE.Color(0xffef8c), 0.5 );
+                dirLight = new THREE.DirectionalLight( new THREE.Color(0xffef8c), 0.5 );
                 dirLight.position.set( -params.groundDimension, 100, params.groundDimension );
                 scene.add(dirLight);
             }
 
             // ====================================================================
-            // make camera views
+            // make keyboard call functions
 
             //updates the camera parameters to show the train from the side
             function showTrainSideView() {
@@ -1239,6 +1248,28 @@
                     upZ: 0
                 };
                 camera = setupCamera();
+                water.render();
+            }
+
+            //updates the camera parameters to show the train from the side
+            function showPlatformView() {
+                params.insideTrain = false;
+                cameraParams = {
+                    near: 1,
+                    far: params.groundDimension,
+                    fov: 100,
+                    aspectRatio: window.innerWidth/window.innerHeight,
+                    atX: 0,
+                    atY: 5,
+                    atZ: 0,
+                    eyeX: params.width*1.5,
+                    eyeY: 5,
+                    eyeZ: -params.plankDepth*1.5,
+                    upX: 0,
+                    upY: 1,
+                    upZ: 0
+                };
+                camera = setupCamera();
             }
 
             //updates the camera parameters to show the train from the inside
@@ -1271,29 +1302,33 @@
             // sets the animationState to its initial setting
             function resetAnimationState() {
                 animationState = {
-                    vx: 1.2, //velocity of the train
+                    vx: 1, //velocity of the train
                     rz: 1.2/(params.height/15), //sets the rotation angle for the wheels
-                    dx: 0.018
+                    dx: 0.015
                 }
             }
             resetAnimationState();
 
+            // pauses train
             function pauseAnimation() {
                 animationState.vx = 0;
                 animationState.rz = 0;
                 params.moving = false;
             }
 
+            // increase train speed after leaving station
             function increaseSpeed() {
-                animationState.vx += .003;
+                animationState.vx += .0015;
                 animationState.rz += .001;
             }
 
+            // decreases train speed before arriving at station
             function decreaseSpeed() {
-                animationState.vx -= .00145;
+                animationState.vx -= .001;
                 animationState.rz -= .0005;
             }
 
+            // handles door movement at station
             function doorAnimation() {
                 if (!params.doorOpened) {
                     doorSetLeft.position.x -= animationState.dx;
@@ -1306,6 +1341,10 @@
 
             //updates one stop of the animation
             function oneStep() {
+                // move the water
+                water.material.uniforms.time.value += 1 / 200;
+
+                // move the train
                 train.position.x += animationState.vx;
                 for (let i = 0; i < wheelList.length; i++) {
                     wheelList[i].rotation.z -= animationState.rz;
@@ -1330,7 +1369,7 @@
                         }
                     }
                     // pause train at the platform
-                    else if (train.position.x > -5) {
+                    else if (train.position.x > 0) {
                         if (!params.hasStopped) {
                             params.hasStopped = true;
                             pauseAnimation();
@@ -1348,13 +1387,16 @@
                 }
             }
 
+            // updates each frame and renders
             function animate() {
-                // oneStep(); 
+                oneStep(); 
                 render();
                 requestAnimationFrame(animate);
             }
 
+            // quick way to render everything!
             function render() {
+                water.render();
                 renderer.render(scene, camera);
             }
 
