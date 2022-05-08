@@ -42,15 +42,6 @@
             created by Yihui Liao and Ivy Ho
         </h6>
         <p>
-            On this page, we have begun to build out a scene from the animated film Spirited Away which was directed by Hayao Miyazaki. 
-            This is the scene where a train that travels through shallow water is arriving at a "bus stop" in the middle of the water to bring the main character to her destination. 
-            We have built out the main components of the train's exterior, implemented water using a plane mapped with slightly transparent material, and also built the train tracks (made from box geoometries) on top of a rock path (texture mapped). 
-            In particular, the train is a fairly complex object in our scene since we used ThreeBSP to transform and merge multiple geometries, which gave us wonderful features like windows that are actually cut out of the train's geometry.
-            In terms of our future plans, we will add doors to the exterior of the train and seating to the interior of the train.
-            On the matter of implementing animations and user interaction, we will be coding our train to move across the screen on a key press. 
-            We also hope to be able to animate the water so that it flows like a real ocean.
-            On specific key presses or perhaps mouse clicks, we would also like to show a variety of camera perspectives on the scene.
-            Please look forward to our final version of the scene.
         </p>
         <script>
             // create a scene
@@ -558,6 +549,40 @@
                 floor.position.set(width*0.54, height/15, 0);
                 car.add(floor);
 
+                //create poles
+                var poles = createPoles(width * .8, .1, height);
+                poles.position.x = 2;
+                poles.position.z = depth/5;
+                car.add(poles);
+
+                var poles2 = createPoles(width * .8, .1, height);
+                poles2.rotation.y = Math.PI;
+                poles2.position.x = width - 2;
+                poles2.position.z = -depth/5;
+                car.add(poles2);
+
+                //create handle
+                var handleX = 1;
+                for (let i = 0; i < 7; i +=1){
+                    var handle = createHandle(.1, .5, .25);
+                    handle.position.x += handleX + 2.25;
+                    handleX += 2.25;
+                    handle.position.y = height/1.15;
+                    handle.position.z = depth/5;
+                    car.add(handle);
+                }
+
+                handleX = 2.25;
+                for (let i = 0; i < 7; i +=1){
+                    var handle = createHandle(.1, .5, .25);
+                    handle.position.x += handleX + 2.25;
+                    handleX += 2.25;
+                    handle.position.y = height/1.15;
+                    handle.position.z = -depth/5;
+                    car.add(handle);
+                }
+
+
                 return car;
             }
 
@@ -728,6 +753,74 @@
                 return sphereMesh;
             }
 
+            function createPoles(width, radius, height){
+                var poles = new THREE.Object3D();
+                
+                var pole1 = createPole(radius, height);
+                var pole2 = createPole(radius, height/3);
+
+                pole2.rotation.x = Math.PI/2;
+                pole2.position.y = height/2;
+
+
+                var pole3 = createPole(radius, height);
+                var pole4 = createPole(radius, height/3);
+
+                pole4.rotation.x = Math.PI/2;
+                pole4.position.y = height/2;
+
+                pole3.position.x = width;
+                pole4.position.x = width;
+
+                var pole5 = createPole(radius, width);
+
+                pole5.rotation.z = -Math.PI/2;
+                pole5.position.y = height/1.15;
+
+                poles.add(pole1);
+                poles.add(pole2);
+                poles.add(pole3);
+                poles.add(pole4);
+                poles.add(pole5);
+
+                return poles;
+            }
+
+            function createPole(radius, height){
+                var pole = new THREE.Object3D();
+
+                var cylinderGeom = new THREE.CylinderGeometry(radius, radius, height, 32);
+                var cylinderMesh = new THREE.Mesh(cylinderGeom, colorMaterials[6])
+
+                cylinderMesh.position.y = height/2;
+
+                pole.add(cylinderMesh);
+
+                return pole;
+            }
+
+            function createHandle(width, height, radius){
+
+                var handle = new THREE.Object3D();
+
+                var planeGeom = new THREE.PlaneGeometry(width, height);
+                var planeMesh = new THREE.Mesh(planeGeom, colorMaterials[0]);
+
+                planeMesh.position.y = -height/2;
+
+                var torusGeom = new THREE.TorusGeometry(radius, .05, 16, 100);
+                var torusMesh = new THREE.Mesh(torusGeom, colorMaterials[0]);
+
+                torusMesh.position.y = -height/2 - 2 * radius;
+
+                handle.add(planeMesh);
+                handle.add(torusMesh);
+
+                return handle;
+
+            }
+
+
             // render the scene
             function remakeScene() {
                 var ground = makeGround();
@@ -747,9 +840,15 @@
                 sign.position.set(-38, 3, -10);
                 scene.add(sign);
 
-                TW.render();
-            }
+                // var pole = createPoles(10, .2, 10);
+                // pole.rotation.y = Math.PI;
+                // pole.position.y = 10;
+                // scene.add(pole);
 
+
+                TW.render();
+
+            }
 
             // ====================================================================
             // add objects to the scene
