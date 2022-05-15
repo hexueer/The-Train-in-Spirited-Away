@@ -126,21 +126,21 @@
 
                 window.addEventListener('resize', onWindowResize, false);
                 
-                // // from threeJS audio listener documentation
-                // const listener = new THREE.AudioListener();
-                // camera.add( listener );
+                // from threeJS audio listener documentation
+                const listener = new THREE.AudioListener();
+                camera.add( listener );
 
-                // // create a global audio source
-                // const sound = new THREE.Audio( listener );
+                // create a global audio source
+                const sound = new THREE.Audio( listener );
 
-                // // load a sound and set it as the Audio object's buffer
-                // const audioLoader = new THREE.AudioLoader();
-                // audioLoader.load( 'one_summer_day.ogg', function( buffer ) {
-                //     sound.setBuffer( buffer );
-                //     sound.setLoop( true );
-                //     sound.setVolume( 0.2 );
-                //     sound.play();
-                // });
+                // load a sound and set it as the Audio object's buffer
+                const audioLoader = new THREE.AudioLoader();
+                audioLoader.load( 'one_summer_day.ogg', function( buffer ) {
+                    sound.setBuffer( buffer );
+                    sound.setLoop( true );
+                    sound.setVolume( 0.2 );
+                    sound.play();
+                });
 
                 remakeScene();
                 animate();
@@ -238,8 +238,9 @@
                                                         shininess: 30,}), 
                                 new THREE.MeshPhysicalMaterial({color: new THREE.Color(0xffffff),  // 8 metallic black
                                                         metalness: 1}),  
-                                new THREE.MeshPhysicalMaterial({color: new THREE.Color(0xf2dbbd),  // 9 light brown
-                                                        metalness: 1}),  
+                                new THREE.MeshPhysicalMaterial({color: new THREE.Color(0x827663),  // 9 metallic brown
+                                                        metalness: 0.1,
+                                                        side: THREE.DoubleSide}),  
                                 ];
 
                 skyMat = new THREE.MeshLambertMaterial({map: textures[10]});
@@ -290,7 +291,7 @@
 
                 // train tracks
                 var positionX = -params.groundDimension/2;
-                for (let i = 0; i <= params.groundDimension; i++ ){
+                for (let i = 0; i <= params.groundDimension*0.7; i++ ){
                     var track = makeTracks();
                     track.position.x = positionX + params.railDepth/2;
                     positionX += params.railDepth/2;
@@ -397,6 +398,17 @@
                 bspGeom = bspGeom.subtract(bsp_door);
 
                 doorGeom.translate(width*0.7876, 0, 0);
+                var bsp_door = new ThreeBSP(doorGeom);
+                bspGeom = bspGeom.subtract(bsp_door);
+
+                return bspGeom;
+            }
+
+            //cuts out an inner door hole between the trains using ThreeBSP
+            function addInnerDoorHole(bspGeom, width, height, depth, offsetY) {
+                var doorGeom = new THREE.BoxGeometry(width, height, depth/2);
+                doorGeom.translate( 0, height/2.5 + offsetY, 0 );
+
                 var bsp_door = new ThreeBSP(doorGeom);
                 bspGeom = bspGeom.subtract(bsp_door);
 
@@ -664,6 +676,7 @@
 
                 //cuts out the interior of the train
                 carGeom = addWindowHoles(carGeom, width, height);
+                carGeom = addInnerDoorHole(carGeom, params.space*1.5, height, depth, 0);
                 carGeom = addDoorHoles(carGeom, width, height, .01, 0);
                 var carInsideGeom = makeTrainCarGeomLowerBevel(width-0.4, height, depth-0.15, 0.15, 0, 0).union(makeTrainCarGeomUpperBevel(width-0.4, height, depth-0.15, 0.15, 0, 0));
                 carInsideGeom = addDoorHoles(carInsideGeom, width, height, .01, 0);
@@ -731,6 +744,7 @@
                 var carGeom = carGeomLower.union(carGeomUpper);
 
                 carGeom = addWindowHoles(carGeom, width, height);
+                carGeom = addInnerDoorHole(carGeom, params.space*1.5, height, depth, 0);
                 carGeom = addDoorHoles(carGeom, width, height, 0, 0);
                 var carInsideGeom = makeTrainCarGeomLowerBevel(width-0.2, height, depth-0.1, 0.1, 0, 0).union(makeTrainCarGeomUpperBevel(width-0.2, height, depth-0.1, 0.1, 0, 0));
                 carInsideGeom = addDoorHoles(carInsideGeom, width, height, 0, 0);
@@ -740,6 +754,7 @@
 
                 // add red planking to the side of the train car
                 var plankingGeom = makeTrainCarGeomLowerBevel(width+0.25, height, depth+0.2, 0, 0, 0);
+                plankingGeom = addInnerDoorHole(plankingGeom, params.space*1.5, height, depth, 0);
                 plankingGeom = addDoorHoles(plankingGeom, width, height, -0.1, 0);
                 var plankingInsideGeom = makeTrainCarGeomLowerBevel(width-0.1, height, depth-0.15, 0.1, 0, 0);
                 plankingGeom = plankingGeom.subtract(plankingInsideGeom);  // remove inside of plank prism
@@ -832,37 +847,33 @@
                 car.add(sign);
 
                 //add poles to interior
-                var poles = createPoles(width * .8, .1, height);
+                var poles = createPoles(width * .8, .05, height);
                 poles.position.x = 2;
-                poles.position.z = depth/5;              
+                poles.position.z = depth/3.5;              
                 car.add(poles);
 
-                var poles2 = createPoles(width * .8, .1, height);
-                poles2.rotation.y = Math.PI;
-                poles2.position.x = width - 2;
-                poles2.position.z = -depth/5;
+                var poles2 = createPoles(width * .8, .05, height);
+                poles2.position.x = 2;
+                poles2.position.z = -depth/3.5;
+                poles2.scale.z = -1;
                 car.add(poles2);
 
-
                 //create handles
-                var handleX = 1;
-                for (let i = 0; i < 7; i +=1){
-                    var handle = createHandle(.1, .5, .25);
+                var handleX = 0.8;
+                for (let i = 0; i < 10; i +=1){
+                    var handle = createHandle(.1, .3, .15);
                     handle.position.x += handleX + 2.25;
-                    handleX += 2.25;
                     handle.position.y = height/1.15;
-                    handle.position.z = depth/5;
+                    handle.position.z = depth/3.5;
                     car.add(handle);
-                }
 
-                handleX = 2.25;
-                for (let i = 0; i < 7; i +=1){
-                    var handle = createHandle(.1, .5, .25);
+                    var handle = createHandle(.08, .3, .15);
                     handle.position.x += handleX + 2.25;
-                    handleX += 2.25;
                     handle.position.y = height/1.15;
-                    handle.position.z = -depth/5;
+                    handle.position.z = -depth/3.5;
                     car.add(handle);
+
+                    handleX += 1.3;
                 }
 
                 return car;
@@ -1053,15 +1064,14 @@
                 
                 //creates the two pole objects on the end
                 var pole1 = createPole(radius, height);
-                var pole2 = createPole(radius, height/3);
+                var pole2 = createPole(radius, height/4);
 
                 pole2.rotation.x = Math.PI/2;
                 pole2.position.y = height/2;
 
-
-                //creates the two pole objects on the other end
+                //creates the four pole objects on the other end
                 var pole3 = createPole(radius, height);
-                var pole4 = createPole(radius, height/3);
+                var pole4 = createPole(radius, height/4);
 
                 pole4.rotation.x = Math.PI/2;
                 pole4.position.y = height/2;
@@ -1069,17 +1079,28 @@
                 pole3.position.x = width;
                 pole4.position.x = width;
 
-                //connects the two poles on the ends
-                var pole5 = createPole(radius, width);
+                var pole5 = createPole(radius, height);
+                var pole6 = createPole(radius, height/4);
 
-                pole5.rotation.z = -Math.PI/2;
-                pole5.position.y = height/1.15;
+                pole6.rotation.x = Math.PI/2;
+                pole6.position.y = height/2;
+
+                pole5.position.x = width*0.87;
+                pole6.position.x = width*0.87;
+
+                //connects the two poles on the ends
+                var pole7 = createPole(radius, width);
+
+                pole7.rotation.z = -Math.PI/2;
+                pole7.position.y = height/1.15;
 
                 poles.add(pole1);
                 poles.add(pole2);
                 poles.add(pole3);
                 poles.add(pole4);
                 poles.add(pole5);
+                poles.add(pole6);
+                poles.add(pole7);
 
                 return poles;
             }
@@ -1089,7 +1110,7 @@
                 var pole = new THREE.Object3D();
 
                 var cylinderGeom = new THREE.CylinderGeometry(radius, radius, height, 32);
-                var cylinderMesh = new THREE.Mesh(cylinderGeom, colorMaterials[6])
+                var cylinderMesh = new THREE.Mesh(cylinderGeom, colorMaterials[9])
 
                 cylinderMesh.position.y = height/2;
 
@@ -1105,12 +1126,12 @@
                 var handle = new THREE.Object3D();
 
                 var planeGeom = new THREE.PlaneGeometry(width, height);
-                var planeMesh = new THREE.Mesh(planeGeom, colorMaterials[0]);
+                var planeMesh = new THREE.Mesh(planeGeom, colorMaterials[9]);
 
                 planeMesh.position.y = -height/2;
 
-                var torusGeom = new THREE.TorusGeometry(radius, .05, 16, 100);
-                var torusMesh = new THREE.Mesh(torusGeom, colorMaterials[0]);
+                var torusGeom = new THREE.TorusGeometry(radius, .03, 16, 100);
+                var torusMesh = new THREE.Mesh(torusGeom, colorMaterials[9]);
 
                 torusMesh.position.y = -height/2 - 2 * radius;
 
@@ -1233,9 +1254,21 @@
                 var height = params.height - .5;
                 var depth = params.depth - .5;
 
+                // black outer
                 var boxGeom = new THREE.BoxGeometry(width, height, depth);
-                var boxMesh = new THREE.Mesh(boxGeom, colorMaterials[2]);
-                boxMesh.position.y = height/2;
+                boxGeom.translate(0, height/2, 0);
+                var bsp_boxGeom = new ThreeBSP(boxGeom);
+                bsp_boxGeom = addInnerDoorHole(bsp_boxGeom, params.space*2, height-0.01, depth*1.2, 0.45);
+                var boxMesh = makeMesh(bsp_boxGeom, colorMaterials[2]);
+
+                connector.add(boxMesh);
+
+                // brown inner
+                var boxGeom = new THREE.BoxGeometry(width + 0.4, height, depth*0.7);
+                boxGeom.translate(0, height/2, 0);
+                var bsp_boxGeom = new ThreeBSP(boxGeom);
+                bsp_boxGeom = addInnerDoorHole(bsp_boxGeom, width + 0.4, height-0.015, depth, 0.45);
+                var boxMesh = makeMesh(bsp_boxGeom, colorMaterials[5]);
 
                 connector.add(boxMesh);
 
@@ -1360,7 +1393,6 @@
                     upZ: 0
                 };
                 camera = setupCamera();
-                water.render();
             }
 
             //updates the camera parameters to show the train from the side
