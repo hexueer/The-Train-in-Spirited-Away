@@ -60,26 +60,28 @@
                 insideTrain: false, // camera view should be inside train now
                 doorOpened: false, // keeps track of if the doors have opened in this cycle
                 doorClosing: false, // keeps track of if the doors are currently closing
+                step: false, // keeps track of whether we can step forward
+                stepsTaken: 0, // keeps track of how many steps have been taken
 
                 headlightsOn: false,
             };
 
             //camera parameters
-            var cameraParams = {
+            cameraParams = {
                     near: 1,
-                    far: params.groundDimension*2,
+                    far: params.groundDimension,
                     fov: 100,
                     aspectRatio: window.innerWidth/window.innerHeight,
                     atX: 0,
-                    atY: 5,
-                    atZ: 0,
+                    atY: 100,
+                    atZ: 100,
                     eyeX: 0,
-                    eyeY: 5,
-                    eyeZ: 40,
+                    eyeY: 30,
+                    eyeZ: 200,
                     upX: 0,
                     upY: 1,
                     upZ: 0
-                  };
+                };
 
             // setupCamera() function creates and returns a camera with the desired parameters
             function setupCamera() {
@@ -99,6 +101,7 @@
 
             //global variables
             let scene, camera, renderer, ambLight, dirLight, controls, train, water;
+            let headlight1, headlight2, lightbulb1, lightbulb2, lightbulb3, lightbulb4, lightbulb5, lightbulb6;
             let wheelList, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13, w14, w15, w16; // wheels need to be global to rotate
             let doorSetRight, doorSetLeft;
 
@@ -163,7 +166,7 @@
             var waterNormal;       
             TW.loadTextures(["materials/rock.jpg", "materials/concrete.jpg", "materials/wood.jpg", "materials/metal.jpg", "materials/waterNormal.jpeg", 
                             "materials/plank.jpg", "materials/velvet.jpg", "materials/floor.jpg", "materials/plank.jpg", "materials/plank.jpg", 
-                            "materials/sunset.png"],
+                            "materials/sunset.png", "materials/rock.jpg", "materials/rock.jpg", "materials/rock.jpg"],
                             
             function (textures) {
                 adjustTexture(textures[0], 250, 6, false, 0); // rock
@@ -175,9 +178,12 @@
                 adjustTexture(textures[7], 5, 2.5, false, 0); // flooring
                 adjustTexture(textures[8], 0.5, 0.3, false, Math.PI); // red planking rotated
                 adjustTexture(textures[9], 0.5, 0.3, false, Math.PI/2); // red planking rotated
+                adjustTexture(textures[11], 250, 4, false, 0); // rock 2nd layer
+                adjustTexture(textures[12], 250, 3, false, 0); // rock 3rd layer
+                adjustTexture(textures[13], 250, 1, false, 0); // rock 4th layer
                 
 
-                materials = [new THREE.MeshPhongMaterial({color: 0xffffff,  // 0 rock
+                materials = [new THREE.MeshPhongMaterial({color: 0xffffff,  // 0 rock for layer 1
                                                         map: textures[0]}),
                             new THREE.MeshPhongMaterial({color: 0xffffff,   // 1 concrete
                                                         map: textures[1]}),
@@ -205,9 +211,12 @@
                             new THREE.MeshPhongMaterial({color: 0xffffff,   // 10 interior wood
                                                         map: textures[10],
                                                         shininess: 0}),
-                            new THREE.MeshPhongMaterial({color: 0xffffff,   // 11 interior wood
-                                                        map: textures[11],
-                                                        shininess: 0}),
+                            new THREE.MeshPhongMaterial({color: 0xffffff,  // 11 rock for layer 2
+                                                        map: textures[11]}),
+                            new THREE.MeshPhongMaterial({color: 0xffffff,  // 12 rock for layer 3
+                                                        map: textures[12]}),
+                            new THREE.MeshPhongMaterial({color: 0xffffff,  // 13 rock for layer 4
+                                                        map: textures[13]}),
                             ];
 
                 colorMaterials = [new THREE.MeshPhongMaterial({color: new THREE.Color(0xfcce8e), // 0 beige
@@ -254,7 +263,10 @@
                 TW.setKeyboardCallback('a', showTrainSideView, "train side view", false);
                 TW.setKeyboardCallback('s', followTrainSideView, "follow train side view", false);
                 TW.setKeyboardCallback('d', showPlatformView, "at platform", false);
-                TW.setKeyboardCallback('f', showInsideTrain, "inside train", false);
+                TW.setKeyboardCallback('f', toggleLight, "turn light on and off", false);
+                TW.setKeyboardCallback('g', showInsideTrain, "inside train", false);
+                TW.setKeyboardCallback('h', stepForward, "inside train and step forward", false);
+                
             });
 
             // ====================================================================
@@ -281,12 +293,43 @@
 
                 // rock path
                 var path = new THREE.PlaneGeometry(params.groundDimension, params.groundDimension/100);
-
                 var pathMesh = new THREE.Mesh(path, materials[0]);
                 pathMesh.position.y = 0.01;
                 pathMesh.rotation.x = Math.PI/2;
                 pathMesh.material.side = THREE.DoubleSide;
+                pathMesh.material.transparent = true;
+                pathMesh.material.opacity = 0.1;
+                pathMesh.renderOrder = 1;
+                ground.add(pathMesh);
 
+                var path = new THREE.PlaneGeometry(params.groundDimension, params.groundDimension/120);
+                var pathMesh = new THREE.Mesh(path, materials[11]);
+                pathMesh.position.y = 0.011;
+                pathMesh.rotation.x = Math.PI/2;
+                pathMesh.material.side = THREE.DoubleSide;
+                pathMesh.material.transparent = true;
+                pathMesh.material.opacity = 0.2;
+                pathMesh.renderOrder = 2;
+                ground.add(pathMesh);
+
+                var path = new THREE.PlaneGeometry(params.groundDimension, params.groundDimension/150);
+                var pathMesh = new THREE.Mesh(path, materials[12]);
+                pathMesh.position.y = 0.012;
+                pathMesh.rotation.x = Math.PI/2;
+                pathMesh.material.side = THREE.DoubleSide;
+                pathMesh.material.transparent = true;
+                pathMesh.material.opacity = 0.25;
+                pathMesh.renderOrder = 3;
+                ground.add(pathMesh);
+
+                var path = new THREE.PlaneGeometry(params.groundDimension, params.groundDimension/400);
+                var pathMesh = new THREE.Mesh(path, materials[13]);
+                pathMesh.position.y = 0.013;
+                pathMesh.rotation.x = Math.PI/2;
+                pathMesh.material.side = THREE.DoubleSide;
+                pathMesh.material.transparent = true;
+                pathMesh.material.opacity = 0.4;
+                pathMesh.renderOrder = 4;
                 ground.add(pathMesh);
 
                 // train tracks
@@ -802,6 +845,7 @@
                 var windowInsideGeom = makeTrainCarGeomUpperBevel(width-0.11, height+0.05, depth-0.11, 0, -0.04, 0);
                 windowGeom = windowGeom.subtract(windowInsideGeom); // remove inside of glass prism
                 var window = makeMesh(windowGeom, colorMaterials[3]);
+                colorMaterials[3].depthWrite = false; // render everything "behind" glass in view
                 car.add(window);
 
                 // wood
@@ -813,12 +857,7 @@
                 var spotlight = makeSpotlight(.45, colorMaterials[4], 1);
                 spotlight.rotation.z = TW.degrees2radians(-4);
                 spotlight.position.set(width-0.25, height*1.06, 0);
-                var light = new THREE.SpotLight(0xffffff, 1, 0, TW.degrees2radians(20), 0, 1);
-                light.position.set(width, height*1.06, 0);
-                light.target.position.set(30, 0, 0);
                 car.add(spotlight);
-                car.add(light);
-                car.add(light.target);
 
                 // add flooring to car
                 var floor = makeFloor(width*1.08, depth);
@@ -910,8 +949,46 @@
                 
                 // add black connector in the middle
                 var connector = addConnector();
-
                 train.add(connector);
+
+                // add headlight lights
+                headlight1 = new THREE.SpotLight(0xffffff, 1, 0, TW.degrees2radians(20), 0, 1);
+                headlight1.position.set(params.width+space, params.height*1.06, 0);
+                headlight1.target.position.set(30, 0, 0);
+                train.add(headlight1);
+                train.add(headlight1.target);
+                headlight1.visible = false;
+                    
+                headlight2 = new THREE.SpotLight(0xffffff, 1, 0, TW.degrees2radians(20), 0, 1);
+                headlight2.position.set(-(params.width+space), params.height*1.06, 0);
+                headlight2.target.position.set(-30, 0, 0);
+                train.add(headlight2);
+                train.add(headlight2.target);
+                headlight2.visible = false;
+
+                var sphereGeom = new THREE.SphereGeometry(.46, 32, 16 );
+                lightbulb1 = new THREE.Mesh(sphereGeom, colorMaterials[3]);
+                lightbulb1.position.set(params.width + space + 0.25, params.height*1.06 + .42, 0);
+                train.add(lightbulb1);
+
+                lightbulb2 = new THREE.Mesh(sphereGeom, colorMaterials[3]);
+                lightbulb2.position.set(-(params.width + space + 0.25), params.height*1.06 + .42, 0);
+                train.add(lightbulb2);
+
+                // mini lights
+                var sphereGeom = new THREE.SphereGeometry(params.height/50, 32, 16 );
+                lightbulb3 = new THREE.Mesh(sphereGeom, colorMaterials[3]);
+                lightbulb3.position.set(params.width*1.1+space-0.1, params.height/5, -params.depth*0.35);
+                train.add(lightbulb3);
+                lightbulb4 = new THREE.Mesh(sphereGeom, colorMaterials[3]);
+                lightbulb4.position.set(params.width*1.1+space-0.1, params.height/5, params.depth*0.35);
+                train.add(lightbulb4);
+                lightbulb5 = new THREE.Mesh(sphereGeom, colorMaterials[3]);
+                lightbulb5.position.set(-(params.width*1.1+space)+0.1, params.height/5, -params.depth*0.35);
+                train.add(lightbulb5);
+                lightbulb6 = new THREE.Mesh(sphereGeom, colorMaterials[3]);
+                lightbulb6.position.set(-(params.width*1.1+space)+0.1, params.height/5, params.depth*0.35);
+                train.add(lightbulb6);
 
                 return train;
             }
@@ -981,15 +1058,6 @@
                 cylMesh.rotation.z = Math.PI/2;
                 cylMesh.position.set(-width*0.01, height/5, depth*0.35);
                 decor.add(cylMesh);
-
-                // light bulbs
-                var sphereGeom = new THREE.SphereGeometry(height/50, 32, 16 );
-                var sphereMesh = new THREE.Mesh(sphereGeom, colorMaterials[1]);
-                sphereMesh.position.set(-0.1, height/5, -depth*0.35);
-                decor.add(sphereMesh);
-                var sphereMesh = new THREE.Mesh(sphereGeom, colorMaterials[1]);
-                sphereMesh.position.set(-0.1, height/5, depth*0.35);
-                decor.add(sphereMesh);
 
                 // metal side panels
                 var boxGeom = createBoxWithRoundedEdges( width/10, height/10, 0.1, 1 / 9, 5 );
@@ -1198,14 +1266,6 @@
                 sphereMesh.position.x = -radius/2;
                 spotlight.add(sphereMesh);
 
-                // make light bulb
-                var sphereGeom = new THREE.SphereGeometry(radius, 32, 16 );
-                var sphereMesh = new THREE.Mesh(sphereGeom, colorMaterials[1]);
-
-                sphereMesh.position.x = side * 0.5;
-                sphereMesh.position.y = radius;
-                spotlight.add(sphereMesh);
-
                 return spotlight;
             }
 
@@ -1264,10 +1324,10 @@
                 connector.add(boxMesh);
 
                 // brown inner
-                var boxGeom = new THREE.BoxGeometry(width + 0.4, height, depth*0.7);
+                var boxGeom = new THREE.BoxGeometry(width + 0.3, height, depth*0.7);
                 boxGeom.translate(0, height/2, 0);
                 var bsp_boxGeom = new ThreeBSP(boxGeom);
-                bsp_boxGeom = addInnerDoorHole(bsp_boxGeom, width + 0.4, height-0.015, depth, 0.45);
+                bsp_boxGeom = addInnerDoorHole(bsp_boxGeom, width + 0.3, height-0.015, depth*1.07, 0.45);
                 var boxMesh = makeMesh(bsp_boxGeom, colorMaterials[5]);
 
                 connector.add(boxMesh);
@@ -1293,7 +1353,23 @@
             // thank you to jbouney for this beautiful water that is compatible with our version of THREE.js!
             // @https://github.com/jbouny/ocean
             function addWater() {
-                water = new THREE.Water(renderer, camera, scene, {
+                cameraParams = {
+                    near: 1,
+                    far: params.groundDimension,
+                    fov: 100,
+                    aspectRatio: window.innerWidth/window.innerHeight,
+                    atX: 0,
+                    atY: 100,
+                    atZ: 50,
+                    eyeX: 0,
+                    eyeY: 200,
+                    eyeZ: params.groundDimension/2,
+                    upX: 0,
+                    upY: 1,
+                    upZ: 0
+                };
+                waterCamera = setupCamera();
+                water = new THREE.Water(renderer, waterCamera, scene, {
                     textureWidth: 512, 
                     textureHeight: 712,
                     waterNormals: waterNormal,
@@ -1419,6 +1495,7 @@
             //updates the camera parameters to show the train from the inside
             function showInsideTrain() {
                 params.insideTrain = true;
+                params.stepsTaken = 0;
                 cameraParams = {
                     near: 1,
                     far: params.groundDimension,
@@ -1427,7 +1504,7 @@
                     atX: params.groundDimension,
                     atY: 5,
                     atZ: 0,
-                    eyeX: train.position.x,
+                    eyeX: train.position.x - params.width,
                     eyeY: 4.5,
                     eyeZ: 0,
                     upX: 0,
@@ -1437,6 +1514,41 @@
                 camera = setupCamera();
             }
             
+            // allows user to step forward while inside the train
+            function stepForward() {
+                if (params.stepsTaken < 39) {
+                    params.step = true;
+                    params.stepsTaken += 1
+                }
+            }
+
+            // turns headlights on and off, including light visibility toggling and changing material of light bulb
+            function toggleLight() {
+                if (params.headlightsOn) {
+                    headlight1.visible = false;
+                    headlight2.visible = false;
+                    lightbulb1.material = colorMaterials[3];
+                    lightbulb2.material = colorMaterials[3];
+                    lightbulb3.material = colorMaterials[3];
+                    lightbulb4.material = colorMaterials[3];
+                    lightbulb5.material = colorMaterials[3];
+                    lightbulb6.material = colorMaterials[3];
+                    params.headlightsOn = false;
+                }
+                else {
+                    headlight1.visible = true;
+                    headlight2.visible = true;
+                    lightbulb1.material = colorMaterials[1];
+                    lightbulb2.material = colorMaterials[1];
+                    lightbulb3.material = colorMaterials[1];
+                    lightbulb4.material = colorMaterials[1];
+                    lightbulb5.material = colorMaterials[1];
+                    lightbulb6.material = colorMaterials[1];
+                    params.headlightsOn = true;
+                }
+                
+            }
+
             // ====================================================================
             // animation 
 
@@ -1498,7 +1610,13 @@
                 if (params.moving) {
                     //update the camera position if the view is inside the train
                     if (params.insideTrain) {
-                        camera.position.x += animationState.vx;
+                        if (params.step) {
+                            camera.position.x += animationState.vx + 1;
+                            params.step = false;
+                        }
+                        else {
+                            camera.position.x += animationState.vx;
+                        }
                     }
 
                     // restart train at left end once the train reaches the end of the box
@@ -1509,7 +1627,8 @@
                         doorSetRight.position.x = params.space;
                         doorSetLeft.position.x = -params.space;
                         if (params.insideTrain) {
-                            camera.position.x = -params.groundDimension/2 + params.width*3;
+                            camera.position.x = -params.groundDimension/2 + params.width*2;
+                            params.stepsTaken = 0;
                         }
                     }
                     // pause train at the platform
@@ -1528,6 +1647,10 @@
                     }
                 } else {
                     doorAnimation();
+                    if (params.insideTrain && params.step) {
+                        camera.position.x += 1;
+                        params.step = false;
+                    }
                 }
             }
 
